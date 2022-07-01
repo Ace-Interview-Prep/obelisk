@@ -113,15 +113,21 @@ in rec {
       services.openssh.enable = true;
       services.openssh.permitRootLogin = "prohibit-password";
 
-      security.acme = if enableHttps then {
-        acceptTerms = terms.security.acme.acceptTerms;
-        email = adminEmail;
-        certs = {
-          "${routeHost}" = {
-            extraDomains = builtins.listToAttrs (map (h: { name = h; value = null; }) redirectHosts);
-          };
-        };
+      # security.acme = if enableHttps then {
+      #   acceptTerms = terms.security.acme.acceptTerms;
+      #   email = adminEmail;
+      #   certs = {
+      #     "${routeHost}" = {
+      #       extraDomains = builtins.listToAttrs (map (h: { name = h; value = null; }) redirectHosts);
+      #     };
+      #   };
+      # } else {};
+      
+      security.acme.certs = if enableHttps then {
+        "${routeHost}".email = adminEmail;
       } else {};
+
+      security.acme.${if enableHttps && (terms.security.acme.acceptTerms or false) then "acceptTerms" else null} = true;
     };
 
     mkObeliskApp =
@@ -154,14 +160,15 @@ in rec {
               '';
             };
           };
-        } // builtins.listToAttrs (map (redirectSourceDomain: {
-          name = redirectSourceDomain;
-          value = {
-            enableACME = enableHttps;
-            forceSSL = enableHttps;
-            globalRedirect = routeHost;
-          };
-        }) redirectHosts);
+        }
+        # // builtins.listToAttrs (map (redirectSourceDomain: {
+        #   name = redirectSourceDomain;
+        #   value = {
+        #     enableACME = enableHttps;
+        #     forceSSL = enableHttps;
+        #     globalRedirect = routeHost;
+        #   };
+        # }) redirectHosts);
       };
       systemd.services.${name} = {
         wantedBy = [ "multi-user.target" ];
@@ -218,6 +225,19 @@ in rec {
           (module { inherit exe hostName adminEmail routeHost enableHttps version; nixosPkgs = pkgs; })
           (serverModules.mkDefaultNetworking args)
           (serverModules.mkObeliskApp args)
+          ./acme.nix
+        ];
+        # Backport of ACME upgrades from 20.03
+        disabledModules = [
+          (pkgs.path + /nixos/modules/security/acme.nix)
+        ];
+        nixpkgs.overlays = [
+          (self: super: {
+            lego = (import (builtins.fetchTarball {
+                url = https://github.com/NixOS/nixpkgs-channels/archive/70717a337f7ae4e486ba71a500367cad697e5f09.tar.gz;
+                sha256 = "1sbmqn7yc5iilqnvy9nvhsa9bx6spfq1kndvvis9031723iyymd1";
+              }) {}).lego;
+          })
         ];
       };
     };
