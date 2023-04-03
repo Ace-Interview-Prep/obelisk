@@ -4,12 +4,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PackageImports #-}
 module Obelisk.Command where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Foldable (for_)
-import Data.List (isInfixOf, isPrefixOf)
+import Data.List (isInfixOf, isPrefixOf, notElem)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
@@ -20,18 +21,21 @@ import Options.Applicative.Help.Pretty (text, (<$$>))
 import System.Directory
 import System.Environment
 import System.FilePath
+import System.Exit
 import qualified System.Info
-import System.IO (hIsTerminalDevice, stdout)
+import System.IO (hIsTerminalDevice, Handle, stdout, stderr, hGetEncoding, hSetEncoding, mkTextEncoding)
+import GHC.IO.Encoding.Types (textEncodingName)
 import System.Process (rawSystem)
+import Network.Socket (PortNumber)
 
 import Obelisk.App
-import Obelisk.CliApp
 import Obelisk.Command.Deploy
 import Obelisk.Command.Project
 import Obelisk.Command.Run
-import Obelisk.Command.Thunk
 import qualified Obelisk.Command.VmBuilder as VmBuilder
 import qualified Obelisk.Command.Preprocessor as Preprocessor
+import "nix-thunk" Nix.Thunk
+import Cli.Extras
 
 
 data Args = Args
@@ -84,7 +88,7 @@ initForce = switch (long "force" <> help "Allow ob init to overwrite files")
 data ObCommand
    = ObCommand_Init InitSource Bool
    | ObCommand_Deploy DeployCommand
-   | ObCommand_Run [(FilePath, Interpret)] (Maybe FilePath)
+   | ObCommand_Run [(FilePath, Interpret)] (Maybe FilePath) (Maybe PortNumber)
    | ObCommand_Profile String [String]
    | ObCommand_Thunk ThunkOption
    | ObCommand_Repl [(FilePath, Interpret)]
@@ -108,7 +112,12 @@ obCommand cfg = hsubparser
   (mconcat
     [ command "init" $ info (ObCommand_Init <$> initSource <*> initForce) $ progDesc "Initialize an Obelisk project"
     , command "deploy" $ info (ObCommand_Deploy <$> deployCommand cfg) $ progDesc "Prepare a deployment for an Obelisk project"
-    , command "run" $ info (ObCommand_Run <$> interpretOpts <*> certDirOpts) $ progDesc "Run current project in development mode"
+    , command "run" $ info
+      (   ObCommand_Run
+      <$> interpretOpts
+      <*> certDirOpts
+      <*> (Just <$> option auto (long "port" <> short 'p' <> help "Port number for server; overrides common/config/route" <> metavar "INT") <|> pure Nothing))
+      $ progDesc "Run current project in development mode"
     , command "profile" $ info (uncurry ObCommand_Profile <$> profileCommand) $ progDesc "Run current project with profiling enabled"
     , command "thunk" $ info (ObCommand_Thunk <$> thunkOption) $ progDesc "Manipulate thunk directories"
     , command "repl" $ info (ObCommand_Repl <$> interpretOpts) $ progDesc "Open an interactive interpreter"
@@ -318,12 +327,13 @@ mkObeliskConfig = do
   let logLevel = toLogLevel $ any (`elem` ["-v", "--verbose"]) cliArgs
   notInteractive <- not <$> isInteractiveTerm
   cliConf <- newCliConfig logLevel notInteractive notInteractive $ \case
-    ObeliskError_ProcessError (ProcessFailure p code) ann ->
+    ObeliskError_ProcessError ObeliskProcessError{_obeliskProcessError_failure = ProcessFailure p code, _obeliskProcessError_mComment = ann } ->
       ( "Process exited with code " <> T.pack (show code) <> "; " <> reconstructCommand p
         <> maybe "" ("\n" <>) ann
-      , 2
+      , ExitFailure 2
       )
-    ObeliskError_Unstructured msg -> (msg, 2)
+    ObeliskError_NixThunkError e -> (prettyNixThunkError e, ExitFailure 2)
+    ObeliskError_Unstructured msg -> (msg, ExitFailure 2)
 
   return $ Obelisk cliConf
   where
@@ -351,11 +361,30 @@ runCommand f = flip runObelisk f =<< mkObeliskConfig
 main :: IO ()
 main = runCommand . main' =<< getArgsConfig
 
+-- | Change the character encoding of the given Handle to transliterate
+-- unsupported characters, instead of throwing an exception.
+hSetTranslit :: Handle -> IO ()
+hSetTranslit h = do
+  menc <- hGetEncoding h
+  case fmap textEncodingName menc of
+    Just name | '/' `notElem` name -> do
+      enc' <- mkTextEncoding $ name ++ "//TRANSLIT"
+      hSetEncoding h enc'
+    _ -> return ()
+
 main' :: MonadObelisk m => ArgsConfig -> m ()
 main' argsCfg = do
   obPath <- liftIO getExecutablePath
   myArgs <- liftIO getArgs
   logLevel <- getLogLevel
+
+  -- NB: We set the standard output and standard error streams to
+  -- TransliterateCodingFailure so that, on encodings which do not
+  -- support our fancy characters, we print a replacement character
+  -- instead of exploding.
+  liftIO $ hSetTranslit stdout
+  liftIO $ hSetTranslit stderr
+
   putLog Debug $ T.pack $ unwords
     [ "Starting Obelisk <" <> obPath <> ">"
     , "args=" <> show myArgs
@@ -403,9 +432,9 @@ ob = \case
       deployPush deployPath deployBuilders
     DeployCommand_Update -> deployUpdate "."
     DeployCommand_Test (platform, extraArgs) -> deployMobile platform extraArgs
-  ObCommand_Run interpretPathsList certDir -> withInterpretPaths interpretPathsList (run certDir)
+  ObCommand_Run interpretPathsList certDir servePort -> withInterpretPaths interpretPathsList (run certDir servePort)
   ObCommand_Profile basePath rtsFlags -> profile basePath rtsFlags
-  ObCommand_Thunk to -> case _thunkOption_command to of
+  ObCommand_Thunk to -> wrapNixThunkError $ case _thunkOption_command to of
     ThunkCommand_Update config -> for_ thunks (updateThunkToLatest config)
     ThunkCommand_Unpack -> for_ thunks unpackThunk
     ThunkCommand_Pack config -> for_ thunks (packThunk config)

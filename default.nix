@@ -1,11 +1,12 @@
 { system ? builtins.currentSystem
 , profiling ? false
-, iosSdkVersion ? "13.2"
+, iosSdkVersion ? "15.0"
 , config ? {}
 , terms ? { # Accepted terms, conditions, and licenses
     security.acme.acceptTerms = false;
   }
 , reflex-platform-func ? import ./dep/reflex-platform
+, useGHC810 ? false #true if one wants to use ghc 8.10.7
 }:
 let
   reflex-platform = getReflexPlatform { inherit system; };
@@ -17,12 +18,14 @@ let
   getReflexPlatform = { system, enableLibraryProfiling ? profiling }: reflex-platform-func {
     inherit iosSdkVersion config system enableLibraryProfiling;
 
+    __useNewerCompiler = useGHC810;
+
     nixpkgsOverlays = [
       (import ./nixpkgs-overlays)
     ];
 
     haskellOverlays = [
-      (import ./haskell-overlays/misc-deps.nix { inherit hackGet; })
+      (import ./haskell-overlays/misc-deps.nix { inherit hackGet; __useNewerCompiler = useGHC810; })
       pkgs.obeliskExecutableConfig.haskellOverlay
       (import ./haskell-overlays/obelisk.nix)
       (import ./haskell-overlays/tighten-ob-exes.nix)
@@ -87,7 +90,8 @@ in rec {
       ${if optimizationLevel == null then ''
         ln -s "$dir/all.unminified.js" "$dir/all.js"
       '' else ''
-        '${pkgs.closurecompiler}/bin/closure-compiler' ${if externs == null then "" else "--externs '${externs}'"} --externs '${reflex-platform.ghcjsExternsJs}' -O '${optimizationLevel}' --jscomp_warning=checkVars --create_source_map="$dir/all.js.map" --source_map_format=V3 --js_output_file="$dir/all.js" "$dir/all.unminified.js"
+        # NOTE: "--error_format JSON" avoids closurecompiler crashes when trying to report errors.
+        '${pkgs.closurecompiler}/bin/closure-compiler' --error_format JSON ${if externs == null then "" else "--externs '${externs}'"} --externs '${reflex-platform.ghcjsExternsJs}' -O '${optimizationLevel}' --jscomp_warning=checkVars --warning_level=QUIET --create_source_map="$dir/all.js.map" --source_map_format=V3 --js_output_file="$dir/all.js" "$dir/all.unminified.js"
         echo '//# sourceMappingURL=all.js.map' >> "$dir/all.js"
       ''}
     done
@@ -141,6 +145,7 @@ in rec {
       , internalPort ? 8000
       , backendArgs ? "--port=${toString internalPort}"
       , redirectHosts ? [] # Domains to redirect to routeHost; importantly, these domains will be added to the SSL certificate
+      , configHash ? "" # The expected hash of the configuration directory tree.
       , ...
       }: {...}:
       assert lib.assertMsg (!(builtins.elem routeHost redirectHosts)) "routeHost may not be a member of redirectHosts";
@@ -175,11 +180,18 @@ in rec {
         after = [ "network.target" ];
         restartIfChanged = true;
         path = [ pkgs.gnutar ];
+
+        # Even though echoing the hash is functionally useless at
+        # runtime, its inclusion in the service script means that Nix
+        # will automatically restart the server whenever the configHash
+        # argument is changed.
         script = ''
+          echo "Expecting config hash to be ${configHash}, but not verifying this"
           ln -sft . '${exe}'/*
           mkdir -p log
           exec ./backend ${backendArgs} </dev/null
         '';
+
         serviceConfig = {
           User = user;
           KillMode = "process";
@@ -204,18 +216,28 @@ in rec {
   inherit mkAssets;
 
   serverExe = backend: frontend: assets: optimizationLevel: externjs: version:
-    pkgs.runCommand "serverExe" {} ''
+    let
+      exeBackend = if profiling then backend else haskellLib.justStaticExecutables backend;
+      exeFrontend = compressedJs frontend optimizationLevel externjs;
+      exeFrontendAssets = mkAssets exeFrontend;
+      exeAssets = mkAssets assets;
+    in pkgs.runCommand "serverExe" {} ''
       mkdir $out
       set -eux
-      ln -s '${if profiling then backend else haskellLib.justStaticExecutables backend}'/bin/* $out/
-      ln -s '${mkAssets assets}' $out/static.assets
-      for d in '${mkAssets (compressedJs frontend optimizationLevel externjs)}'/*/; do
+      ln -s '${exeBackend}'/bin/* $out/
+      ln -s '${exeAssets}' $out/static.assets
+      for d in '${exeFrontendAssets}'/*/; do
         ln -s "$d" "$out"/"$(basename "$d").assets"
       done
       echo ${version} > $out/version
-    '';
+    '' // {
+      backend = exeBackend;
+      frontend = exeFrontend;
+      frontend-assets = exeFrontendAssets;
+      static-assets = exeAssets;
+    };
 
-  server = { exe, hostName, adminEmail, routeHost, enableHttps, version, module ? serverModules.mkBaseEc2, redirectHosts ? [] }@args:
+  server = { exe, hostName, adminEmail, routeHost, enableHttps, version, module ? serverModules.mkBaseEc2, redirectHosts ? [], configHash ? "" }@args:
     let
       nixos = import (pkgs.path + /nixos);
     in nixos {
@@ -331,10 +353,7 @@ in rec {
 
                 shellToolOverrides = lib.composeExtensions
                   self.userSettings.shellToolOverrides
-                  (if self.userSettings.__withGhcide
-                    then (import ./haskell-overlays/ghcide.nix)
-                    else (_: _: {})
-                  );
+                  (_: _: {});
 
                 project = reflexPlatformProject ({...}: self.projectConfig);
                 projectConfig = {
@@ -367,13 +386,13 @@ in rec {
             in allConfig;
         in (mkProject (projectDefinition args)).projectConfig);
       mainProjectOut = projectOut { inherit system; };
-      serverOn = projectInst: version: serverExe
-        projectInst.ghc.backend
-        mainProjectOut.ghcjs.frontend
-        projectInst.passthru.staticFiles
-        projectInst.passthru.__closureCompilerOptimizationLevel
-        projectInst.passthru.externjs
-        version;
+      serverOn = projectInst: version:
+        let backend = projectInst.ghc.backend;
+            frontend = mainProjectOut.ghcjs.frontend;
+            staticFiles = projectInst.passthru.staticFiles;
+            ccOptLevel = projectInst.passthru.__closureCompilerOptimizationLevel;
+            externJs = projectInst.passthru.externjs;
+        in serverExe backend frontend staticFiles ccOptLevel externJs version;
       linuxExe = serverOn (projectOut { system = "x86_64-linux"; });
       dummyVersion = "Version number is only available for deployments";
     in mainProjectOut // {
@@ -398,7 +417,7 @@ in rec {
           main :: IO ()
           main = do
             [portStr, assets, profFileName] <- getArgs
-            Obelisk.Run.run (read portStr) Nothing (Obelisk.Run.runServeAsset assets) Backend.backend Frontend.frontend
+            Obelisk.Run.run (Obelisk.Run.defaultRunApp Backend.backend Frontend.frontend (Obelisk.Run.runServeAsset assets)){ Obelisk.Run._runApp_backendPort = read portStr }
               `finally` writeProfilingData (profFileName ++ ".rprof")
         '';
       in nixpkgs.runCommand "ob-run" {
@@ -412,7 +431,7 @@ in rec {
       linuxExeConfigurable = linuxExe;
       linuxExe = linuxExe dummyVersion;
       exe = serverOn mainProjectOut dummyVersion;
-      server = args@{ hostName, adminEmail, routeHost, enableHttps, version, module ? serverModules.mkBaseEc2, redirectHosts ? [] }:
+      server = args@{ hostName, adminEmail, routeHost, enableHttps, version, module ? serverModules.mkBaseEc2, redirectHosts ? [], configHash ? "" }:
         server (args // { exe = linuxExe version; });
       obelisk = import (base' + "/.obelisk/impl") {};
     };
