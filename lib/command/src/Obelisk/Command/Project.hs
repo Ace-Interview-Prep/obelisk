@@ -76,6 +76,9 @@ import Obelisk.Command.Utils (nixBuildExePath, nixExePath, toNixPath, cp, nixShe
 
 --TODO: Make this module resilient to random exceptions
 
+
+static_Out = "static.out"
+
 --TODO: Don't hardcode this
 -- | Source for the Obelisk project
 obeliskSource :: ThunkSource
@@ -413,12 +416,12 @@ findProjectAssets root = do
       _ <- buildStaticFilesDerivationAndSymlink
         (readProcessAndLogStderr Debug)
         root
-      pure (AssetSource_Derivation, T.pack $ root </> "static.out")
+      pure (AssetSource_Derivation, T.pack $ root </> static_Out)
     else fmap (AssetSource_Files,) $ do
       path <- readProcessAndLogStderr Debug $ setCwd (Just root) $
         proc nixExePath ["eval", "-f", ".", "passthru.staticFilesImpure", "--raw"]
       _ <- readProcessAndLogStderr Debug $ setCwd (Just root) $
-        proc lnPath ["-sfT", T.unpack path, "./static.out"]
+        proc lnPath ["-sfT", T.unpack path, static_Out]
       pure path
 
 -- | Get the nix store path to the generated static asset manifest module (e.g., "obelisk-generated-static")
@@ -477,7 +480,7 @@ watchStaticFilesDerivation root = do
       $ liftIO
       . runObelisk ob
       . putLog Debug
-      . ("Regenerating static.out due to file changes: "<>)
+      . (("Regenerating " <> T.pack static_Out <> " due to file changes: ") <>)
       . T.intercalate ", "
       . Set.toList
       . Set.fromList
@@ -491,7 +494,7 @@ watchStaticFilesDerivation root = do
         buildStaticCatchErrors >>= \case
           Nothing -> pure ()
           Just n -> do
-            putLog Notice $ "Static assets built and symlinked to static.out"
+            putLog Notice $ "Static assets built and symlinked to " <> T.pack static_Out
             putLog Debug $ "Generated static asset nix path: " <> n
     pure never
   where
@@ -523,7 +526,7 @@ buildStaticFilesDerivationAndSymlink f root = f $
   setCwd (Just root) $ ProcessSpec
     { _processSpec_createProcess = Proc.proc
         nixBuildExePath
-        [ "-o", "static.out"
+        [ "-o", (last $ splitPath root) <> ".out" --static_Out 
         , "-E", "(import ./. {}).passthru.staticFilesImpure"
         ]
     , _processSpec_overrideEnv = Nothing
