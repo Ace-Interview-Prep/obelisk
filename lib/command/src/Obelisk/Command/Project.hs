@@ -42,7 +42,7 @@ import qualified Data.ByteString.Lazy as BSL
 import Data.Default (def)
 import qualified Data.Foldable as F (toList)
 import Data.Function ((&), on)
-import Data.Map (Map)
+import qualified Data.Map as Map (Map, toList, fromList)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -343,7 +343,7 @@ mkObNixShellProc
   => FilePath -- ^ Path to project root
   -> Bool -- ^ Should this be a pure shell?
   -> Bool -- ^ Should we chdir to the package root in the shell?
-  -> Map Text FilePath -- ^ Package names mapped to their paths
+  -> Map.Map Text FilePath -- ^ Package names mapped to their paths
   -> String -- ^ Shell attribute to use (e.g. @"ghc"@, @"ghcjs"@, etc.)
   -> Maybe String -- ^ If 'Just' run the given command; otherwise just open the interactive shell
   -> m ProcessSpec
@@ -367,7 +367,7 @@ nixShellWithoutPkgs
   => FilePath -- ^ Path to project root
   -> Bool -- ^ Should this be a pure shell?
   -> Bool -- ^ Should we chdir to the package root in the shell?
-  -> Map Text FilePath -- ^ Package names mapped to their paths
+  -> Map.Map Text FilePath -- ^ Package names mapped to their paths
   -> String -- ^ Shell attribute to use (e.g. @"ghc"@, @"ghcjs"@, etc.)
   -> Maybe String -- ^ If 'Just' run the given command; otherwise just open the interactive shell
   -> m ()
@@ -398,31 +398,33 @@ describeImpureAssetSource src path = case src of
 
 -- | Determine where the static files of a project are and whether they're plain files or a derivation.
 -- If they are a derivation, that derivation will be built.
-findProjectAssets :: MonadObelisk m => FilePath -> m (AssetSource, Text)
+findProjectAssets :: MonadObelisk m => FilePath -> m (Map.Map Text AssetSource) --(AssetSource, Text)
 findProjectAssets root = do
   isDerivation <- readProcessAndLogStderr Debug $ setCwd (Just root) $
     proc nixExePath
       [ "eval"
       , "--impure"
       , "--expr"
-      , "(let a = import ./. {}; in toString (a.reflex.nixpkgs.lib.isDerivation a.passthru.staticFilesImpure))"
-      , "--raw"
-      -- `--raw` is not available with old nix-instantiate. It drops quotation
-      -- marks and trailing newline, so is very convenient for shelling out.
+      , "(let a = import ./. {}; in builtins.mapAttrs (name: value: toString (a.reflex.nixpkgs.lib.isDerivation value) ) a.passthru.staticFilesImpure)"
+      , "--json"
       ]
-  -- Check whether the impure static files are a derivation (and so must be built)
-  if isDerivation == "1"
-    then do
-      _ <- buildStaticFilesDerivationAndSymlink
-        (readProcessAndLogStderr Debug)
-        root
-      pure (AssetSource_Derivation, T.pack $ root </> static_Out)
-    else fmap (AssetSource_Files,) $ do
-      path <- readProcessAndLogStderr Debug $ setCwd (Just root) $
-        proc nixExePath ["eval", "-f", ".", "passthru.staticFilesImpure", "--raw"]
-      _ <- readProcessAndLogStderr Debug $ setCwd (Just root) $
-        proc lnPath ["-sfT", T.unpack path, static_Out]
-      pure path
+  case Json.eitherDecode . BSL.fromStrict . encodeUtf8 $ isDerivation of
+    Left _ -> undefined -- what does this mean?
+    Right (areDrvs :: Map.Map Text Text) -> do
+      let asList = Map.toList areDrvs
+      fmap Map.fromList $ forM asList $ \(key, isDrv) -> do 
+        if isDerivation == "1"
+          then do
+            _ <- buildStaticFilesDerivationAndSymlink
+              (readProcessAndLogStderr Debug)
+              root
+            pure (T.pack $ root </> static_Out, AssetSource_Derivation)
+          else fmap (,AssetSource_Files) $ do
+            path <- readProcessAndLogStderr Debug $ setCwd (Just root) $
+              proc nixExePath ["eval", "-f", ".", "passthru.staticFilesImpure.", T.unpack key, "--raw"]
+            _ <- readProcessAndLogStderr Debug $ setCwd (Just root) $
+              proc lnPath ["-sfT", T.unpack path, static_Out]
+            pure path
 
 -- | Get the nix store path to the generated static asset manifest module (e.g., "obelisk-generated-static")
 getHaskellManifestProjectPath :: MonadObelisk m => FilePath -> m Text
