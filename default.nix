@@ -77,7 +77,7 @@ in rec {
     touch "$out"
     mkdir -p "$symlinked"
     ${exe} "$src" "$haskellManifest" ${packageName} ${moduleName} "$symlinked"
-  '';
+  '' // {inherit packageName;};
 
   compressedJs = frontend: optimizationLevel: externs: pkgs.runCommand "compressedJs" {} ''
     set -euo pipefail
