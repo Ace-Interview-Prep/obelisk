@@ -270,20 +270,34 @@ in rec {
                 inherit args;
                 userSettings = {
                   inherit android ios packages overrides tools shellToolOverrides withHoogle externjs __closureCompilerOptimizationLevel __withGhcide __deprecated;
-                  staticFiles = if staticFiles == null then self.base + /static else staticFiles;
+                  staticFiles =
+                    if staticFiles == null
+                    then { static = { path = self.base + /static; isDrv = false; drvArgs = null; moduleName = "Obelisk.Generated.Static"; }; }
+                    else staticFiles;
                 };
                 frontendName = "frontend";
                 backendName = "backend";
                 commonName = "common";
-                staticName = "obelisk-generated-static";
-                staticFilesImpure = let fs = self.userSettings.staticFiles; in if lib.isDerivation fs then fs else toString fs;
-                processedStatic = processAssets {
-                  src = self.userSettings.staticFiles;
-                  exe = if lib.attrByPath ["userSettings" "__deprecated" "useObeliskAssetManifestGenerate"] false self
-                    then builtins.trace "obelisk-asset-manifest-generate is deprecated. Use obelisk-asset-th-generate instead." "obelisk-asset-manifest-generate"
-                    else "obelisk-asset-th-generate";
-                };
-                # The packages whose names and roles are defined by this package
+                #staticName = "obelisk-generated-static";
+                staticFilesImpure =
+                  let fs = self.userSettings.staticFiles;
+                  in lib.mapAttrs (_: staticArgs:
+                    if staticArgs.isDrv
+                    then { path = staticArgs.path; src = import staticArgs.src staticArgs.drvArgs; }
+                    else { path = staticArgs.path; src = toString staticArgs.path; }
+                  ) fs;
+                processedStatic =
+                  let processAssets' = { path, drvArgs, isDrv, packageName ? "obelisk-generated-static", moduleName ? "Obelisk.Generated.Static" }@staticDrvArgs: processAssets { 
+                        src = if isDrv then (import path drvArgs) else path;
+                        packageName = packageName;
+                        moduleName = moduleName;
+                        #moduleName
+                        exe = if lib.attrByPath ["userSettings" "__deprecated" "useObeliskAssetManifestGenerate"] false self
+                              then builtins.trace "obelisk-asset-manifest-generate is deprecated. Use obelisk-asset-th-generate instead." "obelisk-asset-manifest-generate"
+                              else "obelisk-asset-th-generate";
+                      };
+                  in
+                    lib.mapAttrs (name: staticArgs: processAssets' (staticArgs // { packageName = name; } )) self.userSettings.staticFiles; 
                 predefinedPackages = lib.filterAttrs (_: x: x != null) {
                   ${self.frontendName} = nullIfAbsent (self.base + "/frontend");
                   ${self.commonName} = nullIfAbsent (self.base + "/common");
@@ -291,10 +305,12 @@ in rec {
                 };
                 shellPackages = {};
                 combinedPackages = self.predefinedPackages // self.userSettings.packages // self.shellPackages;
-                projectOverrides = self': super': {
-                  ${self.staticName} = haskellLib.dontHaddock (self'.callCabal2nix self.staticName self.processedStatic.haskellManifest {});
+                projectOverrides = self': super': ({                  
                   ${self.backendName} = haskellLib.addBuildDepend super'.${self.backendName} self'.obelisk-run;
-                };
+                } // (
+                  # unique name | <<- unique packageName <<- unique module name, in order to depend on all of them together in one pkgset 
+                  lib.mapAttrs (pkgName: assets: self'.callCabal2nix pkgName assets.haskellManifest {}) self.processedStatic
+                ));
                 totalOverrides = lib.composeExtensions self.projectOverrides self.userSettings.overrides;
                 privateConfigDirs = ["config/backend"];
                 injectableConfig = builtins.filterSource (path: _:
