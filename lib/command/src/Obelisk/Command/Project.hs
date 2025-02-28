@@ -22,8 +22,9 @@ module Obelisk.Command.Project
   , withProjectRoot
   , bashEscape
   , shEscape
-  , getHaskellManifestProjectPath
+  , getStaticHaskellManifestProjectPaths
   , AssetSource(..)
+  , StaticInfo(..)
   , describeImpureAssetSource
   , watchStaticFilesDerivation
   ) where
@@ -44,6 +45,7 @@ import qualified Data.Foldable as F (toList)
 import Data.Function ((&), on)
 import qualified Data.Map as Map (Map, toList, fromList)
 import qualified Data.Set as Set
+import qualified Data.List as List
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -77,7 +79,13 @@ import Obelisk.Command.Utils (nixBuildExePath, nixExePath, toNixPath, cp, nixShe
 --TODO: Make this module resilient to random exceptions
 
 
-static_Out = "static.out"
+static_out :: FilePath
+static_out = "static.out"
+
+-- | Common constant used for symlinked static drv
+dotOut :: FilePath
+dotOut = ".dot"
+
 
 --TODO: Don't hardcode this
 -- | Source for the Obelisk project
@@ -390,6 +398,23 @@ data AssetSource = AssetSource_Derivation
                  | AssetSource_Files
   deriving (Eq)
 
+data StaticInfo = StaticInfo
+  { _staticInfo_name :: T.Text
+  , _staticInfo_assetSource :: AssetSource
+  , _staticInfo_path :: FilePath 
+  }
+
+instance Json.FromJSON StaticInfo where
+  parseJSON = Json.withObject "StaticInfo" $ \o -> do
+    name <- o Json..: "staticName"
+    drvBool <- o Json..: "isDrv"
+    path <- o Json..: "staticPath"
+    return $ StaticInfo
+      { _staticInfo_name  = name
+      , _staticInfo_assetSource = if drvBool then AssetSource_Derivation else AssetSource_Files
+      , _staticInfo_path  = last $ splitDirectories path
+      }
+      
 -- | Some log messages to make it easier to tell where static files are coming from
 describeImpureAssetSource :: AssetSource -> Text -> Text
 describeImpureAssetSource src path = case src of
@@ -398,42 +423,41 @@ describeImpureAssetSource src path = case src of
 
 -- | Determine where the static files of a project are and whether they're plain files or a derivation.
 -- If they are a derivation, that derivation will be built.
-findProjectAssets :: MonadObelisk m => FilePath -> m (Map.Map Text AssetSource) --(AssetSource, Text)
+findProjectAssets :: MonadObelisk m => FilePath -> m [StaticInfo]
 findProjectAssets root = do
   isDerivation <- readProcessAndLogStderr Debug $ setCwd (Just root) $
     proc nixExePath
       [ "eval"
       , "--impure"
       , "--expr"
-      , "(let a = import ./. {}; in builtins.mapAttrs (name: value: toString (a.reflex.nixpkgs.lib.isDerivation value) ) a.passthru.staticFilesImpure)"
+      , "(let a = import ./. {}; in builtins.attrValues (builtins.mapAttrs (n: value: {staticName=n;isDrv = a.reflex.nixpkgs.lib.isDerivation value.src; staticPath = value.path;} ) a.passthru.staticFilesImpure))"
       , "--json"
       ]
   case Json.eitherDecode . BSL.fromStrict . encodeUtf8 $ isDerivation of
-    Left _ -> undefined -- what does this mean?
-    Right (areDrvs :: Map.Map Text Text) -> do
-      let asList = Map.toList areDrvs
-      fmap Map.fromList $ forM asList $ \(key, isDrv) -> do 
-        if isDerivation == "1"
+    Left _ -> throwError "Unable to get StaticInfo" 
+    Right (statics :: [StaticInfo]) -> do
+      -- Build symlink path at <staticName>.out 
+      forM_ statics $ \staticInfo -> do 
+        if _staticInfo_assetSource staticInfo == AssetSource_Derivation
           then do
-            _ <- buildStaticFilesDerivationAndSymlink
+            void $ buildStaticFilesDerivationAndSymlink
               (readProcessAndLogStderr Debug)
               root
-            pure (T.pack $ root </> static_Out, AssetSource_Derivation)
-          else fmap (,AssetSource_Files) $ do
-            path <- readProcessAndLogStderr Debug $ setCwd (Just root) $
-              proc nixExePath ["eval", "-f", ".", "passthru.staticFilesImpure.", T.unpack key, "--raw"]
-            _ <- readProcessAndLogStderr Debug $ setCwd (Just root) $
-              proc lnPath ["-sfT", T.unpack path, static_Out]
-            pure path
+              (_staticInfo_name staticInfo) 
+          else do
+            void $ readProcessAndLogStderr Debug $ setCwd (Just root) $
+              proc lnPath ["-sfT", (_staticInfo_path staticInfo), T.unpack (_staticInfo_name staticInfo) <> dotOut]
+      pure statics
 
 -- | Get the nix store path to the generated static asset manifest module (e.g., "obelisk-generated-static")
-getHaskellManifestProjectPath :: MonadObelisk m => FilePath -> m Text
-getHaskellManifestProjectPath root = fmap T.strip $ readProcessAndLogStderr Debug $ setCwd (Just root) $
-  proc nixBuildExePath
+getStaticHaskellManifestProjectPaths :: MonadObelisk m => FilePath -> m [Text]
+getStaticHaskellManifestProjectPaths root = do
+  stdout <- readProcessAndLogStderr Debug $ setCwd (Just root) $ proc nixBuildExePath
     [ "--no-out-link"
     , "-E"
-    , "(let a = import ./. {}; in a.passthru.processedStatic.haskellManifest)"
+    , "(let a = import ./. {}; in builtins.mapAttrs (_: x: x.haskellManifest) d.passthru.processedStatic)"
     ]
+  pure $ T.strip <$> T.lines stdout
 
 -- | Watch the common, backend, frontend, and static directories for file
 -- changes and check whether those file changes cause changes in the static
