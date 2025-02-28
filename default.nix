@@ -282,8 +282,9 @@ in rec {
                 staticFilesImpure =
                   let fs = self.userSettings.staticFiles;
                   in lib.mapAttrs (_: staticArgs:
+                    # path attr just allows us to watch for file changes
                     if staticArgs.isDrv
-                    then { path = staticArgs.path; src = import staticArgs.src staticArgs.drvArgs; }
+                    then { path = staticArgs.path; src = import staticArgs.path staticArgs.drvArgs; }
                     else { path = staticArgs.path; src = toString staticArgs.path; }
                   ) fs;
                 processedStatic =
@@ -298,6 +299,12 @@ in rec {
                       };
                   in
                     lib.mapAttrs (name: staticArgs: processAssets' (staticArgs // { packageName = name; } )) self.userSettings.staticFiles; 
+                    # lib.mapAttrs (_: staticArgs:
+                    #   if staticArgs.isDrv
+                    #   then processAssets' (import staticArgs.path staticArgs.args)
+                    #   else processAssets' staticArgs.path 
+                    # ) self.userSettings.staticFiles;
+                # The packages whose names and roles are defined by this package
                 predefinedPackages = lib.filterAttrs (_: x: x != null) {
                   ${self.frontendName} = nullIfAbsent (self.base + "/frontend");
                   ${self.commonName} = nullIfAbsent (self.base + "/common");
