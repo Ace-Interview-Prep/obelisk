@@ -465,8 +465,11 @@ getStaticHaskellManifestProjectPaths root = do
 watchStaticFilesDerivation
   :: (MonadIO m, MonadObelisk m)
   => FilePath
+  -- ^ root folder 
+  -> [StaticInfo]
+  -- ^ which static folder are we watching 
   -> m ()
-watchStaticFilesDerivation root = do
+watchStaticFilesDerivation root statics = do
   ob <- getObelisk
   liftIO $ runHeadlessApp $ do
     pb <- getPostBuild
@@ -496,17 +499,18 @@ watchStaticFilesDerivation root = do
                   else WatchModeOS
             }
         watch' pkg = fmap (:[]) <$> watchDirectoryTree cfg (root </> pkg <$ pb) (filterEvents . eventPath)
+    -- TODO: similar to previous todo, we should check if frontend and backend depend on this particular static package
+    -- eg. if this static package is only needed by backend   
     rebuild <- batchOccurrences 0.25 =<< mergeWith (<>) <$> mapM watch'
-      [ "frontend"
+      ([ "frontend"
       , "backend"
       , "common"
-      , "static"
-      ]
+      ] <> (_staticInfo_path <$> statics))
     performEvent_
       $ liftIO
       . runObelisk ob
       . putLog Debug
-      . (("Regenerating " <> T.pack static_Out <> " due to file changes: ") <>)
+      . (("Regenerating static due to file changes: ") <>)
       . T.intercalate ", "
       . Set.toList
       . Set.fromList
@@ -517,43 +521,48 @@ watchStaticFilesDerivation root = do
     void $ flip throttleBatchWithLag rebuild $ \e ->
       performEvent $ ffor e $ \_ -> liftIO $ runObelisk ob $ do
         putLog Notice "Static assets being built..."
-        buildStaticCatchErrors >>= \case
+        sequenceA <$> traverse buildStaticCatchErrors (_staticInfo_name <$> statics) >>= \case
           Nothing -> pure ()
-          Just n -> do
-            putLog Notice $ "Static assets built and symlinked to " <> T.pack static_Out
-            putLog Debug $ "Generated static asset nix path: " <> n
+          Just ns -> forM_ ns $ \n -> do
+            putLog Notice $ "Static assets built and symlinked to "
+              <> (maybe "static.out" ((<>) ".out" . _staticInfo_name) $ (List.find ((== drvNameFromPath n) . _staticInfo_name) statics))
+            putLog Debug $ "Generated static asset nix path: " <> T.pack n
     pure never
   where
+    drvNameFromPath = T.pack . drop 1 . dropWhile (/= '-') . last . splitDirectories  
     handleBuildFailure
       :: MonadObelisk m
       => (ExitCode, String, String)
-      -> m (Maybe Text)
+      -> m (Maybe FilePath)
     handleBuildFailure (ex, out, err) = case ex of
       ExitSuccess ->
         let out' = T.strip $ T.pack out
-        in pure $ if T.null out' then Nothing else Just out'
+        in pure $ if T.null out' then Nothing else Just $ T.unpack out'
       _ -> do
         putLog Error $
           ("Static assets build failed: " <>) $
             T.unlines $ reverse $ take 20 $ reverse $ T.lines $ T.pack err
         pure Nothing
-    buildStaticCatchErrors :: MonadObelisk m => m (Maybe Text)
-    buildStaticCatchErrors = handleBuildFailure =<<
+    --buildStaticsCatchErrors staticAttrs = traverse buildStaticCatchErrors staticAttrs
+    buildStaticCatchErrors :: MonadObelisk m => Text -> m (Maybe FilePath)
+    buildStaticCatchErrors staticA = handleBuildFailure =<<
       buildStaticFilesDerivationAndSymlink
         readCreateProcessWithExitCode
         root
+        staticA
 
 buildStaticFilesDerivationAndSymlink
   :: MonadObelisk m
   => (ProcessSpec -> m a)
   -> FilePath
+  -> Text
   -> m a
-buildStaticFilesDerivationAndSymlink f root = f $
+buildStaticFilesDerivationAndSymlink f root staticName = f $
   setCwd (Just root) $ ProcessSpec
     { _processSpec_createProcess = Proc.proc
         nixBuildExePath
-        [ "-o", (last $ splitPath root) <> ".out" --static_Out 
-        , "-E", "(import ./. {}).passthru.staticFilesImpure"
+        [ "-o", T.unpack staticName <> dotOut
+        , "-E", "(import ./. {}).passthru.staticFilesImpure." <> T.unpack staticName <> ".src"
         ]
     , _processSpec_overrideEnv = Nothing
     }
