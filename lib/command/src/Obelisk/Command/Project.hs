@@ -79,12 +79,12 @@ import Obelisk.Command.Utils (nixBuildExePath, nixExePath, toNixPath, cp, nixShe
 --TODO: Make this module resilient to random exceptions
 
 
-static_out :: FilePath
-static_out = "static.out"
+staticOut :: FilePath
+staticOut = "static.out"
 
 -- | Common constant used for symlinked static drv
 dotOut :: FilePath
-dotOut = ".dot"
+dotOut = ".out"
 
 
 --TODO: Don't hardcode this
@@ -412,9 +412,9 @@ instance Json.FromJSON StaticInfo where
     return $ StaticInfo
       { _staticInfo_name  = name
       , _staticInfo_assetSource = if drvBool then AssetSource_Derivation else AssetSource_Files
-      , _staticInfo_path  = last $ splitDirectories path
+      , _staticInfo_path  = path
       }
-      
+
 -- | Some log messages to make it easier to tell where static files are coming from
 describeImpureAssetSource :: AssetSource -> Text -> Text
 describeImpureAssetSource src path = case src of
@@ -434,9 +434,10 @@ findProjectAssets root = do
       , "--json"
       ]
   case Json.eitherDecode . BSL.fromStrict . encodeUtf8 $ isDerivation of
-    Left _ -> throwError "Unable to get StaticInfo" 
+    Left _ -> fail "Unable to get StaticInfo" 
     Right (statics :: [StaticInfo]) -> do
-      -- Build symlink path at <staticName>.out 
+      liftIO $ createDirectoryIfMissing False staticOut
+      -- Build symlink path at static.out/<staticName>
       forM_ statics $ \staticInfo -> do 
         if _staticInfo_assetSource staticInfo == AssetSource_Derivation
           then do
@@ -446,7 +447,7 @@ findProjectAssets root = do
               (_staticInfo_name staticInfo) 
           else do
             void $ readProcessAndLogStderr Debug $ setCwd (Just root) $
-              proc lnPath ["-sfT", (_staticInfo_path staticInfo), T.unpack (_staticInfo_name staticInfo) <> dotOut]
+              proc lnPath ["-sfT", (_staticInfo_path staticInfo), staticOut </> T.unpack (_staticInfo_name staticInfo)]
       pure statics
 
 -- | Get the nix store path to the generated static asset manifest module (e.g., "obelisk-generated-static")
@@ -561,7 +562,7 @@ buildStaticFilesDerivationAndSymlink f root staticName = f $
   setCwd (Just root) $ ProcessSpec
     { _processSpec_createProcess = Proc.proc
         nixBuildExePath
-        [ "-o", T.unpack staticName <> dotOut
+        [ "-o", staticOut </> T.unpack staticName
         , "-E", "(import ./. {}).passthru.staticFilesImpure." <> T.unpack staticName <> ".src"
         ]
     , _processSpec_overrideEnv = Nothing
