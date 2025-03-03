@@ -27,6 +27,7 @@ module Obelisk.Command.Project
   , StaticInfo(..)
   , describeImpureAssetSource
   , watchStaticFilesDerivation
+  , staticOut
   ) where
 
 import Control.Concurrent.MVar (MVar, newMVar, withMVarMasked)
