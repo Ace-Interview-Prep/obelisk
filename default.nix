@@ -68,16 +68,24 @@ in rec {
   '';
   nullIfAbsent = p: if lib.pathExists p then p else null;
   #TODO: Avoid copying files within the nix store.  Right now, obelisk-asset-manifest-generate copies files into a big blob so that the android/ios static assets can be imported from there; instead, we should get everything lined up right before turning it into an APK, so that copies, if necessary, only exist temporarily.
-  processAssets = { src, packageName ? "obelisk-generated-static", moduleName ? "Obelisk.Generated.Static", exe ? "obelisk-asset-th-generate" }: pkgs.runCommand "asset-manifest" {
-    inherit src;
-    outputs = [ "out" "haskellManifest" "symlinked" ];
-    nativeBuildInputs = [ ghcObelisk.obelisk-asset-manifest ];
-  } ''
-    set -euo pipefail
-    touch "$out"
-    mkdir -p "$symlinked"
-    ${exe} "$src" "$haskellManifest" ${packageName} ${moduleName} "$symlinked"
-  '' // {inherit packageName;};
+  processAssets =
+    { src
+    , packageName ? "obelisk-generated-static"
+    , moduleName ? "Obelisk.Generated.Static"
+    #, staticFunctionName ? packageName
+    , staticPath ? "static"
+    , staticName ? "static" 
+    , exe ? "obelisk-asset-th-generate"
+    }: pkgs.runCommand "asset-manifest" {
+      inherit src;
+      outputs = [ "out" "haskellManifest" "symlinked" ];
+      nativeBuildInputs = [ ghcObelisk.obelisk-asset-manifest ];
+    } ''
+      set -euo pipefail
+      touch "$out"
+      mkdir -p "$symlinked"
+      ${exe} "$src" "$haskellManifest" ${packageName} ${moduleName} "$symlinked" ${staticName}
+      '' // {inherit packageName;};
 
   compressedJs = frontend: optimizationLevel: externs: pkgs.runCommand "compressedJs" {} ''
     set -euo pipefail
@@ -288,8 +296,9 @@ in rec {
                     else { path = staticArgs.path; src = toString staticArgs.path; }
                   ) fs;
                 processedStatic =
-                  let processAssets' = { path, drvArgs, isDrv, packageName ? "obelisk-generated-static", moduleName ? "Obelisk.Generated.Static" }@staticDrvArgs: processAssets { 
+                  let processAssets' = { path, drvArgs, isDrv, staticName, packageName ? "obelisk-generated-static", moduleName ? "Obelisk.Generated.Static" }@staticDrvArgs: processAssets { 
                         src = if isDrv then (import path drvArgs) else path;
+                        staticName = staticName;
                         packageName = packageName;
                         moduleName = moduleName;
                         #moduleName
@@ -298,7 +307,7 @@ in rec {
                               else "obelisk-asset-th-generate";
                       };
                   in
-                    lib.mapAttrs (name: staticArgs: processAssets' (staticArgs // { packageName = name; } )) self.userSettings.staticFiles; 
+                    lib.mapAttrs (name: staticArgs: processAssets' (staticArgs // { packageName = name; staticName = name;} )) self.userSettings.staticFiles; 
                     # lib.mapAttrs (_: staticArgs:
                     #   if staticArgs.isDrv
                     #   then processAssets' (import staticArgs.path staticArgs.args)
