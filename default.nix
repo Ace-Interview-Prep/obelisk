@@ -221,12 +221,16 @@ in rec {
       exeBackend = if profiling then backend else haskellLib.justStaticExecutables backend;
       exeFrontend = compressedJs frontend optimizationLevel externjs;
       exeFrontendAssets = mkAssets exeFrontend;
-      exeAssets = mkAssets assets;
+      exeAssets = lib.mapAttrs (n: args: mkAssets (if args.isDrv then (import args.path args.drvArgs) else args.path)) assets;
     in pkgs.runCommand "serverExe" {} ''
       mkdir $out
       set -eux
       ln -s '${exeBackend}'/bin/* $out/
-      ln -s '${exeAssets}' $out/static.assets
+      mkdir $out/static.assets
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: assets: ''
+        ln -s '${assets}' $out/static.assets/${name}
+      '') exeAssets)}
+
       for d in '${exeFrontendAssets}'/*/; do
         ln -s "$d" "$out"/"$(basename "$d").assets"
       done
@@ -296,23 +300,17 @@ in rec {
                     else { path = staticArgs.path; src = toString staticArgs.path; }
                   ) fs;
                 processedStatic =
-                  let processAssets' = { path, drvArgs, isDrv, staticName, packageName ? "obelisk-generated-static", moduleName ? "Obelisk.Generated.Static" }@staticDrvArgs: processAssets { 
+                  let processAssets' = { path, drvArgs, isDrv, staticName, packageName, moduleName ? "Obelisk.Generated.Static" }@staticDrvArgs: processAssets { 
                         src = if isDrv then (import path drvArgs) else path;
                         staticName = staticName;
                         packageName = packageName;
                         moduleName = moduleName;
-                        #moduleName
                         exe = if lib.attrByPath ["userSettings" "__deprecated" "useObeliskAssetManifestGenerate"] false self
                               then builtins.trace "obelisk-asset-manifest-generate is deprecated. Use obelisk-asset-th-generate instead." "obelisk-asset-manifest-generate"
                               else "obelisk-asset-th-generate";
                       };
                   in
                     lib.mapAttrs (name: staticArgs: processAssets' (staticArgs // { packageName = name; staticName = name;} )) self.userSettings.staticFiles; 
-                    # lib.mapAttrs (_: staticArgs:
-                    #   if staticArgs.isDrv
-                    #   then processAssets' (import staticArgs.path staticArgs.args)
-                    #   else processAssets' staticArgs.path 
-                    # ) self.userSettings.staticFiles;
                 # The packages whose names and roles are defined by this package
                 predefinedPackages = lib.filterAttrs (_: x: x != null) {
                   ${self.frontendName} = nullIfAbsent (self.base + "/frontend");
