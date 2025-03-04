@@ -457,7 +457,7 @@ getStaticHaskellManifestProjectPaths root = do
   stdout <- readProcessAndLogStderr Debug $ setCwd (Just root) $ proc nixBuildExePath
     [ "--no-out-link"
     , "-E"
-    , "(let a = import ./. {}; in builtins.mapAttrs (_: x: x.haskellManifest) d.passthru.processedStatic)"
+    , "(let a = import ./. {}; in builtins.mapAttrs (_: x: x.haskellManifest) a.passthru.processedStatic)"
     ]
   pure $ T.strip <$> T.lines stdout
 
