@@ -36,7 +36,7 @@ main = do
       , "staticFilePath =  staticAssetFilePathRaw \"static.out\"" <> " " <> show staticAttrName 
       , "#else"
       , "static = staticAssetHashed " <> show root <> " " <> show staticAttrName 
-      , "staticFilePath = staticAssetFilePath " <> show root <> " " <> show staticAttrName 
+      , "staticFilePath = staticAssetFilePath " <> show root 
       , "#endif"
       ]
     }

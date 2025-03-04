@@ -66,9 +66,9 @@ staticAssetFilePathRaw
 staticAssetFilePathRaw root staticName = staticAssetWorker root staticOutPath staticName
 
 -- | Return the real location of 'relativePath' 
-staticAssetFilePath :: FilePath -> FilePath -> FilePath -> Q Exp
-staticAssetFilePath root staticPkgName relativePath = do
-  let fullPath = root </> staticPkgName </> relativePath
+staticAssetFilePath :: FilePath -> FilePath -> Q Exp
+staticAssetFilePath root relativePath = do
+  let fullPath = root </> relativePath
   qAddDependentFile fullPath
   pure $ LitE $ StringL fullPath
 
