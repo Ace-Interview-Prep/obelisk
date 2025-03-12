@@ -333,10 +333,10 @@ in rec {
                 __androidWithConfig = configPath: {
                   ${if self.userSettings.android == null then null else self.frontendName} = {
                     executableName = "frontend";
-                    ${if builtins.pathExists self.userSettings.staticFiles then "assets" else null} =
+                    "assets" = #${if builtins.pathExists self.userSettings.staticFiles.staticAssets then "assets" else null} =
                       nixpkgs.obeliskExecutableConfig.platforms.android.inject
                         (self.injectableConfig configPath)
-                        self.processedStatic.symlinked;
+                        self.processedStatic.staticAssets.symlinked;
                   } // self.userSettings.android;
                 };
                 __iosWithConfig = configPath: {
