@@ -11,7 +11,8 @@ let
   injectConfig = config: assets: runCommand "inject-config" {} (''
     set -x
     mkdir -p $out
-    cp --no-preserve=mode -Lr "${assets}" $out/static
+    mkdir -p $out/static
+    cp --no-preserve=mode -Lr "${assets}" $out/static/staticAssets
     chmod +w "$out"
   '' + lib.optionalString (!(builtins.isNull config)) ''
     if ! mkdir $out/config; then
