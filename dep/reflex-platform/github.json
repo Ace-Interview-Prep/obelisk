@@ -1,8 +1,8 @@
 {
-  "owner": "reflex-frp",
+  "owner": "Ace-Interview-Prep",
   "repo": "reflex-platform",
-  "branch": "release/1.2.0.0",
+  "branch": "gs/android-cookies",
   "private": false,
-  "rev": "f231e2425ac92339b8491cdd970930d63d9ad1ad",
-  "sha256": "0b042x423p04shhidni08f47ydgpfj0rpqhb0m6gj2lg8b3s9l8k"
+  "rev": "35abfe8401eb3badfd521da8b9c49a29da0de97b",
+  "sha256": "1gfsm3p5k8h1c741a1gz34vxwxs20ww0jl8xhi8qrbrw31zvc3k8"
 }
