@@ -193,7 +193,7 @@ runFrontendWithConfigsAndCurrentRoute
 runFrontendWithConfigsAndCurrentRoute mode configs validFullEncoder frontend = do
   let ve = validFullEncoder . hoistParse errorLeft (reviewEncoder (rPrism $ _FullRoute_Frontend . _ObeliskRoute_App))
       errorLeft = \case
-        Left _ -> error "runFrontend: Unexpected non-app ObeliskRoute reached the frontend. This shouldn't happen."
+        Left e -> error $ "runFrontend: Unexpected non-app ObeliskRoute reached the frontend. This shouldn't happen. with route" <> (show e)
         Right x -> Identity x
       w :: ( RawDocument (DomBuilderSpace (HydrationDomBuilderT s DomTimeline m)) ~ DOM.Document
            , Ref (Performable m) ~ Ref IO
