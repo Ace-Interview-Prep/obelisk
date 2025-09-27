@@ -25,7 +25,6 @@ module Obelisk.Frontend
   , module Obelisk.Frontend.Cookie
   ) where
 
-
 #ifdef __GLASGOW_HASKELL__
 #if __GLASGOW_HASKELL__ < 810
 import Data.Monoid ((<>))
@@ -50,6 +49,7 @@ import Data.ByteString (ByteString)
 import Data.Foldable (for_)
 import Data.Map (Map)
 import Data.Maybe (catMaybes)
+import qualified Data.Text as T
 import Data.Text (Text)
 import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Types as DOM
@@ -140,7 +140,7 @@ setInitialRoute useHash = do
   initialUri <- getLocationUri initialLocation
   history <- DOM.getHistory window
   DOM.replaceState history jsNull ("" :: Text) $ Just $
-    show $ setAdaptedUriPath useHash "/" initialUri
+    show $ setAdaptedUriPath useHash "/login" initialUri
 
 data FrontendMode = FrontendMode
   { _frontendMode_hydrate :: Bool
@@ -185,16 +185,29 @@ runFrontend validFullEncoder frontend = do
 
 runFrontendWithConfigsAndCurrentRoute
   :: forall backendRoute frontendRoute
+--  . (GShow backendRoute, GShow frontendRoute)
   .  FrontendMode
   -> Map Text ByteString
   -> Encoder Identity Identity (R (FullRoute backendRoute frontendRoute)) PageName
   -> Frontend (R frontendRoute)
   -> JSM ()
 runFrontendWithConfigsAndCurrentRoute mode configs validFullEncoder frontend = do
-  let ve = validFullEncoder . hoistParse errorLeft (reviewEncoder (rPrism $ _FullRoute_Frontend . _ObeliskRoute_App))
-      errorLeft = \case
-        Left e -> error $ "runFrontend: Unexpected non-app ObeliskRoute reached the frontend. This shouldn't happen. with route" <> (show e)
-        Right x -> Identity x
+  let ---ve :: _
+      ve = validFullEncoder . hoistParse errorLeft (reviewEncoder' (rPrism $ _FullRoute_Frontend . _ObeliskRoute_App))
+      errorLeft
+        :: forall t.
+           Either (R (FullRoute backendRoute frontendRoute)) t
+        -> Identity t
+      errorLeft =
+        Identity . either
+          (\e -> error $
+            "runFrontend: Unexpected non-app ObeliskRoute reached the frontend. "
+            <> "This shouldn't happen. with route "
+            <> T.unpack (renderObeliskRoute validFullEncoder e))
+          Prelude.id
+      -- errorLeft = \case
+      --   Left (e) -> error $ "runFrontend: Unexpected non-app ObeliskRoute reached the frontend. This shouldn't happen. with route" <> (T.unpack $ renderObeliskRoute validFullEncoder e)
+      --   Right x -> Identity x
       w :: ( RawDocument (DomBuilderSpace (HydrationDomBuilderT s DomTimeline m)) ~ DOM.Document
            , Ref (Performable m) ~ Ref IO
            , Ref m ~ Ref IO

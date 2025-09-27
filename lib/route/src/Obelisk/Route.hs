@@ -110,6 +110,7 @@ module Obelisk.Route
   , shadowEncoder
   , prismEncoder
   , reviewEncoder
+  , reviewEncoder'
   , obeliskRouteEncoder
   , obeliskRouteSegment
   , pageNameEncoder
@@ -925,7 +926,15 @@ reviewEncoder p = unsafeMkEncoder $ EncoderImpl
   { _encoderImpl_encode = review p
   , _encoderImpl_decode = \r -> case r ^? p of
       Just a -> pure a
-      Nothing -> throwError "reviewEncoder: value is not present in the prism"
+      Nothing -> throwError $ "reviewEncoder: value is not present in the prism: "
+  }
+
+reviewEncoder' :: (Applicative check, MonadError b parse) => Prism' b a -> Encoder check parse a b
+reviewEncoder' p = unsafeMkEncoder $ EncoderImpl
+  { _encoderImpl_encode = review p
+  , _encoderImpl_decode = \(r) -> case r ^? p of
+      Just a -> pure a
+      Nothing -> throwError r--- $ "reviewEncoder: value is not present in the prism: "
   }
 
 -- | A URL path and query string, in which trailing slashes don't matter in the path
