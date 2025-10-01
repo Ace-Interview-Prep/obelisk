@@ -1,8 +1,8 @@
 {
   "owner": "Ace-Interview-Prep",
   "repo": "reflex-platform",
-  "branch": "gs/android-cookies",
+  "branch": "gs/optimize-android-builds",
   "private": false,
-  "rev": "3def6633078988e91e1922b6b06b0ec374b2fa3c",
-  "sha256": "1w8578nmrahy5ixcpcczxalxffx93bc7impw6pwp408fy48lddd0"
+  "rev": "20e758f07f9476acb288e940be74deec8d3b3ea1",
+  "sha256": "1q6p49qap518w9rmpmwd5iad43lcsqnk30h18r1rhppmn8x4ffbb"
 }
