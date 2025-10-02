@@ -13,6 +13,19 @@ let
     mkdir -p $out
     mkdir -p $out/static
     cp --no-preserve=mode -Lr "${assets}" $out/static/staticAssets
+    assets_root="$out/static/staticAssets"
+
+    # Walk recursively, look for hashed files, remove the plain originals
+    find "$assets_root" -type f -regextype posix-extended -regex '.*/[A-Za-z0-9]{16,}-[^/]+$' | while read -r hashed; do
+         dir=$(dirname "$hashed")
+         base=$(basename "$hashed")
+         orig="''${base#*-}"
+         orig_path="$dir/$orig"
+         if [ -f "$orig_path" ]; then
+           echo "Removing duplicate original: $orig_path"
+             rm -f -- "$orig_path"
+         fi
+    done
     chmod +w "$out"
   '' + lib.optionalString (!(builtins.isNull config)) ''
     if ! mkdir $out/config; then
