@@ -74,7 +74,7 @@ in rec {
     , moduleName ? "Obelisk.Generated.Static"
     #, staticFunctionName ? packageName
     , staticPath ? "static"
-    , staticName ? "static" 
+    , staticName ? "static"
     , exe ? "obelisk-asset-th-generate"
     }: pkgs.runCommand "asset-manifest" {
       inherit src;
@@ -300,17 +300,30 @@ in rec {
                     else { path = staticArgs.path; src = toString staticArgs.path; }
                   ) fs;
                 processedStatic =
-                  let processAssets' = { path, drvArgs, isDrv, staticName, packageName, moduleName ? "Obelisk.Generated.Static" }@staticDrvArgs: processAssets { 
-                        src = if isDrv then (import path drvArgs) else path;
-                        staticName = staticName;
-                        packageName = packageName;
-                        moduleName = moduleName;
-                        exe = if lib.attrByPath ["userSettings" "__deprecated" "useObeliskAssetManifestGenerate"] false self
-                              then builtins.trace "obelisk-asset-manifest-generate is deprecated. Use obelisk-asset-th-generate instead." "obelisk-asset-manifest-generate"
-                              else "obelisk-asset-th-generate";
-                      };
+                  let processAssets' =
+                        { path
+                        , drvArgs
+                        , isDrv
+                        , staticName
+                        , packageName
+                        , moduleName ? "Obelisk.Generated.Static"
+                        , mobile ? true
+                        }@staticDrvArgs: processAssets {
+                          src = if isDrv then (import path drvArgs) else path;
+                          staticName = staticName;
+                          packageName = packageName;
+                          moduleName = moduleName;
+                          exe = if lib.attrByPath ["userSettings" "__deprecated" "useObeliskAssetManifestGenerate"] false self
+                                then builtins.trace "obelisk-asset-manifest-generate is deprecated. Use obelisk-asset-th-generate instead." "obelisk-asset-manifest-generate"
+                                else "obelisk-asset-th-generate";
+                        } // { inherit mobile; };
                   in
-                    lib.mapAttrs (name: staticArgs: processAssets' (staticArgs // { packageName = name; staticName = name;} )) self.userSettings.staticFiles; 
+                    lib.mapAttrs
+                      (name: staticArgs: processAssets'
+                        (staticArgs
+                         // { packageName = name; staticName = name; }
+                        ))
+                      self.userSettings.staticFiles;
                 # The packages whose names and roles are defined by this package
                 predefinedPackages = lib.filterAttrs (_: x: x != null) {
                   ${self.frontendName} = nullIfAbsent (self.base + "/frontend");
@@ -319,10 +332,10 @@ in rec {
                 };
                 shellPackages = {};
                 combinedPackages = self.predefinedPackages // self.userSettings.packages // self.shellPackages;
-                projectOverrides = self': super': ({                  
+                projectOverrides = self': super': ({
                   ${self.backendName} = haskellLib.addBuildDepend super'.${self.backendName} self'.obelisk-run;
                 } // (
-                  # unique name | <<- unique packageName <<- unique module name, in order to depend on all of them together in one pkgset 
+                  # unique name | <<- unique packageName <<- unique module name, in order to depend on all of them together in one pkgset
                   lib.mapAttrs (pkgName: assets: self'.callCabal2nix pkgName assets.haskellManifest {}) self.processedStatic
                 ));
                 totalOverrides = lib.composeExtensions self.projectOverrides self.userSettings.overrides;
@@ -334,9 +347,9 @@ in rec {
                   ${if self.userSettings.android == null then null else self.frontendName} = {
                     executableName = "frontend";
                     "assets" = #${if builtins.pathExists self.userSettings.staticFiles.staticAssets then "assets" else null} =
-                      nixpkgs.obeliskExecutableConfig.platforms.android.inject
+                      nixpkgs.obeliskExecutableConfig.platforms.android.injectMany
                         (self.injectableConfig configPath)
-                        self.processedStatic.staticAssets.symlinked;
+                        (lib.filterAttrs (name: static: static.mobile) self.processedStatic); #.staticAssets.symlinked;
                   } // self.userSettings.android;
                 };
                 __iosWithConfig = configPath: {

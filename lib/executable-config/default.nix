@@ -8,13 +8,62 @@
 }:
 
 let
+  setup = ''
+    set -x
+    mkdir -p $out
+    mkdir -p $out/static
+  '';
+  createConfig = config: lib.optionalString (!(builtins.isNull config)) ''
+    if ! mkdir $out/config; then
+      2>&1 echo config directory already exists or could not be created
+      exit 1
+    fi
+    cp -a "${config}"/* "$out/config"
+    # Needed for android deployments
+    find "$out/config" -type f -printf '%P\0' > "$out/config.files"
+  '';
+  # Walk recursively, look for hashed files, remove the plain originals
+  removeNonHashed = ''
+    assets_root="$out/static/"
+    find "$assets_root" -type f -regextype posix-extended -regex '.*/[A-Za-z0-9]{16,}-[^/]+$' | while read -r hashed; do
+         dir=$(dirname "$hashed")
+         base=$(basename "$hashed")
+         orig="''${base#*-}"
+         orig_path="$dir/$orig"
+         if [ -f "$orig_path" ]; then
+           echo "Removing duplicate original: $orig_path"
+             rm -f -- "$orig_path"
+         fi
+    done
+  '';
+  mkStaticDir = name: assets: ''
+    cp --no-preserve=mode -Lr "${assets}" $out/static/${name} 
+  '';
+  #mkStaticDirs =
+  injectMany = config: processedStatic:
+    let staticDirs = lib.mapAttrsToList (name: assetDrv: mkStaticDir name assetDrv.symlinked) processedStatic;
+    in
+      runCommand "inject-config" {} (
+        ''''
+        + setup
+        + (lib.concatStrings staticDirs)
+        + removeNonHashed
+        + createConfig config
+        + ''''
+      );
+
+
+    #lib.mapAttrs (name: assetDrv: mkStaticDir ) processedStatic
+
+      #map (injectConfig config) assetsMany
   injectConfig = config: assets: runCommand "inject-config" {} (''
     set -x
     mkdir -p $out
     mkdir -p $out/static
     cp --no-preserve=mode -Lr "${assets}" $out/static/staticAssets
-    assets_root="$out/static/staticAssets"
+    chmod +w "$out"
 
+    assets_root="$out/static/staticAssets"
     # Walk recursively, look for hashed files, remove the plain originals
     find "$assets_root" -type f -regextype posix-extended -regex '.*/[A-Za-z0-9]{16,}-[^/]+$' | while read -r hashed; do
          dir=$(dirname "$hashed")
@@ -26,7 +75,7 @@ let
              rm -f -- "$orig_path"
          fi
     done
-    chmod +w "$out"
+
   '' + lib.optionalString (!(builtins.isNull config)) ''
     if ! mkdir $out/config; then
       2>&1 echo config directory already exists or could not be created
@@ -57,6 +106,7 @@ in
   platforms = {
     android = {
       # Inject the given config directory into an android assets folder
+      injectMany = injectMany;
       inject = injectConfig;
     };
     ios = {
