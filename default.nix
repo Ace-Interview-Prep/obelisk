@@ -355,7 +355,7 @@ in rec {
                 __iosWithConfig = configPath: {
                   ${if self.userSettings.ios == null then null else self.frontendName} = {
                     executableName = "frontend";
-                    ${if builtins.pathExists self.userSettings.staticFiles then "staticSrc" else null} =
+                    "assets" =
                       nixpkgs.obeliskExecutableConfig.platforms.ios.injectMany
                         (self.injectableConfig configPath)
                         (lib.filterAttrs (name: static: static.mobile) self.processedStatic);
