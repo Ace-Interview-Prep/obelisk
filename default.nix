@@ -356,9 +356,9 @@ in rec {
                   ${if self.userSettings.ios == null then null else self.frontendName} = {
                     executableName = "frontend";
                     ${if builtins.pathExists self.userSettings.staticFiles then "staticSrc" else null} =
-                      nixpkgs.obeliskExecutableConfig.platforms.ios.inject
+                      nixpkgs.obeliskExecutableConfig.platforms.ios.injectMany
                         (self.injectableConfig configPath)
-                        self.processedStatic.symlinked;
+                        (lib.filterAttrs (name: static: static.mobile) self.processedStatic);
                   } // self.userSettings.ios;
                 };
 
