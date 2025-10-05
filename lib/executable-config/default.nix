@@ -111,6 +111,7 @@ in
     };
     ios = {
       # Inject the given config directory into an iOS app
+      injectMany = injectMany;
       inject = injectConfig;
     };
     web = {
