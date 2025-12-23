@@ -20,6 +20,7 @@ main = do
       ]
     , _simplePkg_moduleContents = T.pack $ unlines
       [ "{-# Language CPP #-}"
+      , "{-# Language PackageImports #-}"
       , "{-|"
       , "  Description:"
       , "    Automatically generated module that provides the 'static' TH function"
@@ -27,7 +28,7 @@ main = do
       , "-}"
       , "module " <> moduleName <> " ( static, staticFilePath ) where"
       , ""
-      , "import Obelisk.Asset.TH"
+      , "import \"template-haskell\" Obelisk.Asset.TH"
       , "import Language.Haskell.TH"
       , ""
       , "static, staticFilePath :: FilePath -> Q Exp"
