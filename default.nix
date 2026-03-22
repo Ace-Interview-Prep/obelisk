@@ -28,6 +28,7 @@ let
       (import ./haskell-overlays/misc-deps.nix { inherit hackGet; __useNewerCompiler = useGHC810; })
       pkgs.obeliskExecutableConfig.haskellOverlay
       (import ./haskell-overlays/obelisk.nix)
+      (import ./haskell-overlays/jenga.nix { inherit hackGet; })
       (import ./haskell-overlays/tighten-ob-exes.nix)
     ];
   };
