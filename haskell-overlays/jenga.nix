@@ -5,7 +5,17 @@ let
   haskellLib = pkgs.haskell.lib;
 
   rhyoliteSrc = hackGet ../dep/rhyolite;
-  rhyoliteRepos = pkgs.thunkSet (rhyoliteSrc + "/dep");
+  # thunkSet + hackGet breaks when called on store-path strings because
+  # hackGet's `import (p + /thunk.nix)` tries to realize the path literal
+  # /thunk.nix. Resolve rhyolite's dep thunks directly via fetchTarball.
+  fetchRhyoliteDep = name:
+    let json = builtins.fromJSON (builtins.readFile (rhyoliteSrc + "/dep/${name}/github.json"));
+    in builtins.fetchTarball {
+      url = "https://github.com/${json.owner}/${json.repo}/archive/${json.rev}.tar.gz";
+      inherit (json) sha256;
+    };
+  rhyoliteRepos = builtins.mapAttrs (name: _: fetchRhyoliteDep name)
+    (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir (rhyoliteSrc + "/dep")));
   jengaAuthSrc = hackGet ../lib/jenga-auth;
   obeliskOauthSrc = hackGet ../dep/obelisk-oauth;
 in
@@ -16,8 +26,7 @@ in
   rhyolite-beam-orphans = self.callCabal2nix "rhyolite-beam-orphans" (rhyoliteSrc + "/beam/orphans") {};
   rhyolite-beam-task-worker-types = self.callCabal2nix "rhyolite-beam-task-worker-types" (rhyoliteSrc + "/beam/task/types") {};
   rhyolite-beam-task-worker-backend =
-    let base = self.callCabal2nix "rhyolite-beam-task-worker-backend" (rhyoliteSrc + "/beam/task/backend") {};
-    in if pkgs.stdenv.hostPlatform.isDarwin then haskellLib.dontCheck base else base;
+    haskellLib.dontCheck (self.callCabal2nix "rhyolite-beam-task-worker-backend" (rhyoliteSrc + "/beam/task/backend") {});
   rhyolite-notify-listen = self.callCabal2nix "rhyolite-notify-listen" (rhyoliteSrc + "/notify-listen/notify-listen") {};
   rhyolite-notify-listen-beam = self.callCabal2nix "rhyolite-notify-listen-beam" (rhyoliteSrc + "/notify-listen/notify-listen-beam") {};
   psql-simple-class = self.callCabal2nix "psql-simple-class" (rhyoliteSrc + "/psql-extras/psql-simple-class") {};
