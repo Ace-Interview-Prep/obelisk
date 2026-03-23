@@ -15,9 +15,10 @@ extra-doc-files:    CHANGELOG.md
 
 common warnings
     ghc-options: -Wall -Werror -O -fno-show-valid-hole-fits
-    if impl(ghc >= 9.4)
-      build-depends: henforcer
-      ghc-options: -fplugin Henforcer
+    -- TODO: re-enable henforcer when GHC >= 9.4
+    -- if impl(ghc >= 9.4)
+    --   build-depends: henforcer
+    --   ghc-options: -fplugin Henforcer
 
 library
     import:           warnings

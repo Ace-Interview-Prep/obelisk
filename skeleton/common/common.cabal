@@ -53,9 +53,10 @@ library
                , witherable
   if !impl(ghcjs)
      build-depends: unicode-transforms
-  if impl(ghc >= 9.4)
-    build-depends: henforcer
-    ghc-options: -fplugin Henforcer
+  -- TODO: re-enable henforcer when GHC >= 9.4
+  -- if impl(ghc >= 9.4)
+  --   build-depends: henforcer
+  --   ghc-options: -fplugin Henforcer
 
   exposed-modules:
       Common.ChatSchema
