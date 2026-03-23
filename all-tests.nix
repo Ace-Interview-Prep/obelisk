@@ -13,7 +13,7 @@ let
   snakeOilPublicKey = sshKeys.snakeOilPublicKey;
 in
   make-test ({...}: {
-    name  = "obelisk";
+    name  = "jenga";
     nodes = {
       githost = {
         networking.firewall.allowedTCPPorts = [ 22 80 ];
@@ -64,8 +64,8 @@ in
       in ''
       start_all()
 
-      with subtest("obelisk is installed and git is configured"):
-          client.succeed("ob --help")
+      with subtest("jenga is installed and git is configured"):
+          client.succeed("jenga --help")
           client.succeed('git config --global user.email "you@example.com"')
           client.succeed('git config --global user.name "Your Name"')
 
@@ -107,22 +107,22 @@ in
           client.succeed("cd ~/code/myapp && git push -u origin master")
           client.succeed("cd ~/code/myapp && git status")
 
-      with subtest("obelisk can pack"):
-          client.succeed("ob -v thunk pack ~/code/myapp")
+      with subtest("jenga can pack"):
+          client.succeed("jenga -v thunk pack ~/code/myapp")
           client.succeed("grep -qF 'git.json' ~/code/myapp/thunk.nix")
           client.succeed("grep -qF 'myorg' ~/code/myapp/git.json")
-          client.succeed("ob -v thunk unpack ~/code/myapp")
+          client.succeed("jenga -v thunk unpack ~/code/myapp")
 
-      with subtest("obelisk can set the public / private flag"):
-          client.succeed("ob -v thunk pack ~/code/myapp --private")
+      with subtest("jenga can set the public / private flag"):
+          client.succeed("jenga -v thunk pack ~/code/myapp --private")
           client.fail("""grep -qF '"private": practice' ~/code/myapp/git.json""")
           client.succeed("""grep -qF '"private": true' ~/code/myapp/git.json""")
           client.succeed("nix-build ~/code/myapp")
-          client.succeed("ob -v thunk unpack ~/code/myapp")
-          client.succeed("ob -v thunk pack ~/code/myapp --public")
+          client.succeed("jenga -v thunk unpack ~/code/myapp")
+          client.succeed("jenga -v thunk pack ~/code/myapp --public")
           client.succeed("""grep -qF '"private": false' ~/code/myapp/git.json""")
           client.succeed("nix-build ~/code/myapp")
-          client.succeed("ob -v thunk unpack ~/code/myapp")
+          client.succeed("jenga -v thunk unpack ~/code/myapp")
 
       with subtest("building an invalid thunk fails"):
           client.succeed("cd ~/code/myapp && git checkout -b bad")
@@ -132,14 +132,14 @@ in
           client.succeed("cd ~/code/myapp && git add .")
           client.succeed('cd ~/code/myapp && git commit -m "Bad commit"')
           client.succeed("cd ~/code/myapp && git push -u origin bad")
-          client.succeed("ob -v thunk pack ~/code/myapp --public")
+          client.succeed("jenga -v thunk pack ~/code/myapp --public")
           client.fail("nix-build ~/code/myapp")
-          client.succeed("ob -v thunk unpack ~/code/myapp")
+          client.succeed("jenga -v thunk unpack ~/code/myapp")
           client.succeed("cd ~/code/myapp && git checkout master")
 
-      with subtest("obelisk can detect private repos"):
-          client.succeed("ob -v thunk pack ~/code/myapp")
+      with subtest("jenga can detect private repos"):
+          client.succeed("jenga -v thunk pack ~/code/myapp")
           client.succeed("""grep -qF '"private": true' ~/code/myapp/git.json""")
-          client.succeed("ob -v thunk unpack ~/code/myapp")
+          client.succeed("jenga -v thunk unpack ~/code/myapp")
       '';
   }) {}

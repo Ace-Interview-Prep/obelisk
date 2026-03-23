@@ -257,7 +257,7 @@ getParsedLocalPkgs root interpretPaths = parsePackagesOrFail =<< getLocalPkgs ro
 getLocalPkgs :: forall m. MonadObelisk m => FilePath -> PathTree Interpret -> m (Set FilePath)
 getLocalPkgs root interpretPaths = do
   putLog Debug $ [i|Finding packages with root ${root} and interpret paths:|] <> "\n" <> drawPathTree textInterpret interpretPaths
-  obeliskPackagePaths <- runFind ["-L", root, "-name", ".obelisk", "-type", "d"]
+  obeliskPackagePaths <- runFind ["-L", root, "-name", ".jenga", "-type", "d"]
 
   -- We do not want to find packages that are embedded inside other obelisk projects, unless that
   -- obelisk project is our own.
@@ -371,7 +371,7 @@ parseCabalPackage' pkg = runExceptT $ do
     Right (Left (CabalFilePath file)) -> (, file, takeBaseName file) <$> liftIO (readUTF8File file)
     Right (Right (HPackFilePath file)) -> do
       let
-        decodeOptions = Hpack.DecodeOptions (Hpack.ProgramName "ob") file Nothing Hpack.decodeYaml
+        decodeOptions = Hpack.DecodeOptions (Hpack.ProgramName "jenga") file Nothing Hpack.decodeYaml
       liftIO (Hpack.readPackageConfig decodeOptions) >>= \case
         Left err -> throwError $ T.pack $ "Failed to parse " <> file <> ": " <> err
         Right (Hpack.DecodeResult hpackPackage _ _ _) -> pure (Hpack.renderPackage [] hpackPackage, file, Hpack.packageName hpackPackage)
@@ -476,7 +476,7 @@ withGhciScript
   -> (FilePath -> m ()) -- ^ Action to run with the path to generated temporary .ghci
   -> m ()
 withGhciScript preCommands (toList -> packageInfos) f =
-  withSystemTempDirectory "ob-ghci" $ \fp -> do
+  withSystemTempDirectory "jenga-ghci" $ \fp -> do
     let dotGhciPath = fp </> ".ghci"
     liftIO $ writeFile dotGhciPath dotGhci
     f dotGhciPath

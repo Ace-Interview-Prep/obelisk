@@ -1,5 +1,5 @@
 { system ? builtins.currentSystem
-, obelisk ? import .obelisk/impl {
+, obelisk ? import .jenga/impl {
     inherit system;
     iosSdkVersion = "13.2";
     config = {

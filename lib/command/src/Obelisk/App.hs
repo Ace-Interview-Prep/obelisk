@@ -139,4 +139,4 @@ type MonadObelisk m =
   )
 
 getObeliskUserStateDir :: IO FilePath
-getObeliskUserStateDir = getXdgDirectory XdgData "obelisk"
+getObeliskUserStateDir = getXdgDirectory XdgData "jenga"

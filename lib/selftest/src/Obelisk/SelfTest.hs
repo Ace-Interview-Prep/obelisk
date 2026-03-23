@@ -96,7 +96,7 @@ sedPath :: FilePath
 sedPath = $(staticWhich "sed")
 
 gitUserConfig :: [Text]
-gitUserConfig = ["-c", "user.name=Obelisk Selftest", "-c", "user.email=noreply@example.com"]
+gitUserConfig = ["-c", "user.name=Jenga Selftest", "-c", "user.email=noreply@example.com"]
 
 commit :: Text -> Sh ()
 commit msg = void $ run gitPath $ gitUserConfig <> [ "commit"
@@ -117,7 +117,7 @@ shellyOb f obTest = shelly $ f obTest
 -- link to obelisk in the nix store in the future,
 -- and avoid PATH hacking before calling this script.
 ob :: FilePath
-ob = "ob"
+ob = "jenga"
 
 augmentWithVerbosity :: (String -> [Text] -> a) -> String -> Bool -> [Text] -> a
 augmentWithVerbosity runner executable isVerbose args = runner executable $ (if isVerbose then ("-v" :) else id) args
@@ -201,10 +201,10 @@ main' isVerbose httpManager obeliskRepoReadOnly = withInitCache $ \initCache -> 
         configs <- getConfigs
         return (either (const Nothing) Just $ getConfigRoute configs) `shouldNotReturn` Nothing
 
-    it "can unpack and repack .obelisk/impl after init with master branch impl" $ inTmp $ \_ -> do
+    it "can unpack and repack .jenga/impl after init with master branch impl" $ inTmp $ \_ -> do
       runOb_ ["init", "--branch", "master"]
-      runOb_ ["thunk", "unpack", ".obelisk/impl"]
-      runOb_ ["thunk", "pack", ".obelisk/impl"]
+      runOb_ ["thunk", "unpack", ".jenga/impl"]
+      runOb_ ["thunk", "pack", ".jenga/impl"]
 
   -- These tests fail with "Could not find module 'Obelisk.Generated.Static'"
   -- when not run by 'nix-build --attr selftest'
@@ -425,7 +425,7 @@ main' isVerbose httpManager obeliskRepoReadOnly = withInitCache $ \initCache -> 
       commit "checkpoint"
       revParseHead
 
-    thunk  = ".obelisk/impl"
+    thunk  = ".jenga/impl"
     update = runOb ["thunk", "update", thunk] *> commitAll
     pack   = runOb ["thunk", "pack",   thunk] *> commitAll
     unpack = runOb ["thunk", "unpack", thunk] *> commitAll

@@ -72,18 +72,18 @@ verbose = flag False True $ mconcat
 argsInfo :: ArgsConfig -> ParserInfo Args
 argsInfo cfg = info (args cfg <**> helper) $ mconcat
   [ fullDesc
-  , progDesc "Manage Obelisk projects"
+  , progDesc "Manage Jenga projects"
   ]
 
 initSource :: Parser InitSource
 initSource = foldl1 (<|>)
   [ pure InitSource_Default
-  , InitSource_Branch <$> strOption (long "branch" <> metavar "BRANCH" <> help "Initialize the project using the given BRANCH of Obelisk's official repository")
-  , InitSource_Symlink <$> strOption (long "symlink" <> action "directory" <> metavar "PATH" <> help "(Use with caution) Initialize the project using the copy of Obelisk found at the given PATH")
+  , InitSource_Branch <$> strOption (long "branch" <> metavar "BRANCH" <> help "Initialize the project using the given BRANCH of Jenga's official repository")
+  , InitSource_Symlink <$> strOption (long "symlink" <> action "directory" <> metavar "PATH" <> help "(Use with caution) Initialize the project using the copy of Jenga found at the given PATH")
   ]
 
 initForce :: Parser Bool
-initForce = switch (long "force" <> help "Allow ob init to overwrite files")
+initForce = switch (long "force" <> help "Allow jenga init to overwrite files")
 
 data ObCommand
    = ObCommand_Init InitSource Bool
@@ -110,8 +110,8 @@ data ObInternal
 obCommand :: ArgsConfig -> Parser ObCommand
 obCommand cfg = hsubparser
   (mconcat
-    [ command "init" $ info (ObCommand_Init <$> initSource <*> initForce) $ progDesc "Initialize an Obelisk project"
-    , command "deploy" $ info (ObCommand_Deploy <$> deployCommand cfg) $ progDesc "Prepare a deployment for an Obelisk project"
+    [ command "init" $ info (ObCommand_Init <$> initSource <*> initForce) $ progDesc "Initialize a Jenga project"
+    , command "deploy" $ info (ObCommand_Deploy <$> deployCommand cfg) $ progDesc "Prepare a deployment for a Jenga project"
     , command "run" $ info
       (   ObCommand_Run
       <$> interpretOpts
@@ -122,14 +122,14 @@ obCommand cfg = hsubparser
     , command "thunk" $ info (ObCommand_Thunk <$> thunkOption) $ progDesc "Manipulate thunk directories"
     , command "repl" $ info (ObCommand_Repl <$> optional userGhciConfigOpt  <*> interpretOpts) $ progDesc "Open an interactive interpreter"
     , command "watch" $ info (ObCommand_Watch <$> interpretOpts) $ progDesc "Watch current project for errors and warnings"
-    , command "shell" $ info (ObCommand_Shell <$> shellOpts) $ progDesc "Enter a shell with project dependencies or run a command in such a shell. E.g. ob shell -- ghc-pkg list"
+    , command "shell" $ info (ObCommand_Shell <$> shellOpts) $ progDesc "Enter a shell with project dependencies or run a command in such a shell. E.g. jenga shell -- ghc-pkg list"
     , command "doc" $ info (ObCommand_Doc <$> shellFlags <*> packageNames) $
         progDesc "List paths to haddock documentation for specified packages"
         <> footerDoc (Just $
               text "Hint: To open the documentation you can pipe the output of this command like"
-              <$$> text "ob doc reflex reflex-dom-core | xargs -n1 xdg-open")
+              <$$> text "jenga doc reflex reflex-dom-core | xargs -n1 xdg-open")
     , command "hoogle" $ info (ObCommand_Hoogle <$> shellFlags <*> portOpt 8080) $ progDesc "Run a hoogle server locally for your project's dependency tree"
-    , command "internal" $ info (ObCommand_Internal <$> internalCommand) $ progDesc "Internal Obelisk commands with unstable APIs"
+    , command "internal" $ info (ObCommand_Internal <$> internalCommand) $ progDesc "Internal Jenga commands with unstable APIs"
     ])
 
 internalCommand :: Parser ObInternal
@@ -145,7 +145,7 @@ deployCommand :: ArgsConfig -> Parser DeployCommand
 deployCommand cfg = hsubparser $ mconcat
   [ command "init" $ info (DeployCommand_Init <$> deployInitOpts) $ progDesc "Initialize a deployment configuration directory"
   , command "push" $ info (DeployCommand_Push <$> remoteBuilderParser) mempty
-  , command "test" $ info (DeployCommand_Test <$> platformP) $ progDesc "Test your obelisk project from a mobile platform."
+  , command "test" $ info (DeployCommand_Test <$> platformP) $ progDesc "Test your Jenga project from a mobile platform."
   , command "update" $ info (pure DeployCommand_Update) $ progDesc "Update the deployment's src thunk to latest"
   ]
   where
@@ -394,7 +394,7 @@ main' argsCfg = do
   liftIO $ hSetTranslit stderr
 
   putLog Debug $ T.pack $ unwords
-    [ "Starting Obelisk <" <> obPath <> ">"
+    [ "Starting Jenga <" <> obPath <> ">"
     , "args=" <> show myArgs
     , "logging-level=" <> show logLevel
     ]
@@ -451,7 +451,7 @@ ob = \case
   ObCommand_Repl mUserGhciConfig interpretPathsList -> withInterpretPaths interpretPathsList $ runRepl mUserGhciConfig
   ObCommand_Watch interpretPathsList -> withInterpretPaths interpretPathsList runWatch
   ObCommand_Shell (ShellOpts shellAttr interpretPathsList cmd) -> withInterpretPaths interpretPathsList $ \root interpretPaths -> do
-    putLog Notice "Hint: use '--no-interpret path/to/dependency' to force building an unpacked dependency and include it in this shell."
+    putLog Notice "Hint: use 'jenga shell --no-interpret path/to/dependency' to force building an unpacked dependency and include it in this shell."
     nixShellForInterpretPaths False shellAttr root interpretPaths cmd -- N.B. We do NOT bash escape here; we want to run the command as-is
   ObCommand_Doc shellAttr pkgs -> withInterpretPaths [] $ \root interpretPaths ->
     nixShellForInterpretPaths True shellAttr root interpretPaths $ Just $ haddockCommand pkgs

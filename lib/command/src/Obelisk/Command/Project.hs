@@ -89,14 +89,14 @@ dotOut = ".out"
 
 
 --TODO: Don't hardcode this
--- | Source for the Obelisk project
+-- | Source for the Jenga project
 obeliskSource :: ThunkSource
-obeliskSource = obeliskSourceWithBranch "master"
+obeliskSource = obeliskSourceWithBranch "gs/jenga"
 
--- | Source for obelisk developer targeting a specific obelisk branch
+-- | Source for developer targeting a specific Jenga branch
 obeliskSourceWithBranch :: Name Branch -> ThunkSource
 obeliskSourceWithBranch branch = ThunkSource_GitHub $ GitHubSource
-  { _gitHubSource_owner = "obsidiansystems"
+  { _gitHubSource_owner = "TypifyDev"
   , _gitHubSource_repo = "obelisk"
   , _gitHubSource_branch = Just branch
   , _gitHubSource_private = False
@@ -109,7 +109,7 @@ data InitSource
   deriving Show
 
 obeliskDirName :: FilePath
-obeliskDirName = ".obelisk"
+obeliskDirName = ".jenga"
 
 -- | Path to obelisk directory in given path
 toObeliskDir :: FilePath -> FilePath
@@ -121,14 +121,14 @@ toImplDir p = toObeliskDir p </> "impl"
 
 -- | Create a new project rooted in the current directory
 initProject :: forall m. MonadObelisk m => InitSource -> Bool -> m ()
-initProject source force = withSystemTempDirectory "ob-init" $ \tmpDir -> do
+initProject source force = withSystemTempDirectory "jenga-init" $ \tmpDir -> do
   let implDir = toImplDir tmpDir
       obDir   = toObeliskDir tmpDir
   liftIO (listDirectory ".") >>= \case
     [] -> pure ()
     _ | force -> putLog Warning "Initializing in non-empty directory"
-      | otherwise -> failWith "ob init requires an empty directory. Use the flag --force to init anyway, potentially overwriting files."
-  skeleton <- withSpinner "Setting up obelisk" $ do
+      | otherwise -> failWith "jenga init requires an empty directory. Use the flag --force to init anyway, potentially overwriting files."
+  skeleton <- withSpinner "Setting up Jenga" $ do
     liftIO $ createDirectory obDir
     -- Clone the git source and repack it with the init source obelisk
     -- The purpose of this is to ensure we use the correct thunk spec.
@@ -172,10 +172,10 @@ initProject source force = withSystemTempDirectory "ob-init" $ \tmpDir -> do
     createDirectoryIfMissing False configDir
     mapM_ (createDirectoryIfMissing False . (configDir </>)) ["backend", "common", "frontend"]
   putLog Notice $ T.intercalate "\n"
-    [ "An obelisk project has been successfully initialized. Next steps:"
-    , "  'ob run': Start a development server"
-    , "  'ob watch': Watch for changes without starting a server"
-    , "  'ob repl': Load your project into GHCi"
+    [ "A Jenga project has been successfully initialized. Next steps:"
+    , "  'jenga run': Start a development server"
+    , "  'jenga watch': Watch for changes without starting a server"
+    , "  'jenga repl': Load your project into GHCi"
     ]
 
 callHandoffOb
@@ -191,7 +191,7 @@ callHandoffOb dir args = do
       , _target_attr = Just "command"
       , _target_expr = Nothing
       }
-  let impl = obeliskCommandPkg </> "bin" </> "ob"
+  let impl = obeliskCommandPkg </> "bin" </> "jenga"
   -- Invoke the real implementation, using --no-handoff to prevent infinite recursion
   putLog Debug $ "Running '" <> T.pack (unwords args) <> "' with " <> T.pack impl
   callProcessAndLogOutput (Debug, Warning) (proc impl ("--no-handoff" : args))
@@ -207,7 +207,7 @@ findProjectObeliskCommand target = do
     Nothing -> pure Nothing
     Just projectRoot -> liftIO (doesDirectoryExist $ toImplDir projectRoot) >>= \case
       False -> do
-        putLog Warning $ "Found obelisk directory in " <> T.pack projectRoot <> " but the implementation (impl) file is missing"
+        putLog Warning $ "Found Jenga directory in " <> T.pack projectRoot <> " but the implementation (impl) file is missing"
         pure Nothing
       True -> do
         walkToImplDir projectRoot myUid processUmask -- For security check
@@ -215,7 +215,7 @@ findProjectObeliskCommand target = do
   case (result, insecurePaths) of
     (Just projDir, []) -> do
       obeliskCommandPkg <- wrapNixThunkError $ nixBuildAttrWithCache (toImplDir projDir) "command"
-      return $ Just $ obeliskCommandPkg </> "bin" </> "ob"
+      return $ Just $ obeliskCommandPkg </> "bin" </> "jenga"
     (Nothing, _) -> return Nothing
     (Just projDir, _) -> do
       putLog Error $ T.unlines
@@ -255,7 +255,7 @@ findProjectRoot target = do
 
 withProjectRoot :: MonadObelisk m => FilePath -> (FilePath -> m a) -> m a
 withProjectRoot target f = findProjectRoot target >>= \case
-  Nothing -> failWith "Must be used inside of an Obelisk project"
+  Nothing -> failWith "Must be used inside of a Jenga project"
   Just root -> f root
 
 -- | Walk from the current directory to the containing project's root directory,
@@ -317,7 +317,7 @@ filePermissionIsSafe s umask = not fileWorldWritable && fileGroupWritable <= uma
 nixShellRunConfig :: MonadObelisk m => FilePath -> Bool -> Maybe String -> m NixShellConfig
 nixShellRunConfig root isPure command = do
   nixpkgsPath <- fmap T.strip $ readProcessAndLogStderr Debug $ setCwd (Just root) $
-    proc nixExePath ["eval", "--impure", "--expr", "(import .obelisk/impl {}).nixpkgs.path"]
+    proc nixExePath ["eval", "--impure", "--expr", "(import .jenga/impl {}).nixpkgs.path"]
   nixRemote <- liftIO $ lookupEnv "NIX_REMOTE"
   pure $ def
     & nixShellConfig_pure .~ isPure

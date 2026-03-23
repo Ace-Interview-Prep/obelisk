@@ -102,7 +102,7 @@ deployInit' thunkPtr (DeployInitOpts deployDir sshKeyPath hostnames route adminE
   liftIO $ createDirectoryIfMissing True deployDir
   localKey <- withSpinner ("Preparing " <> T.pack deployDir) $ do
     localKey <- liftIO (doesFileExist sshKeyPath) >>= \case
-      False -> failWith $ T.pack $ "ob deploy init: file does not exist: " <> sshKeyPath
+      False -> failWith $ T.pack $ "jenga deploy init: file does not exist: " <> sshKeyPath
       True -> pure $ deployDir </> "ssh_key"
     callProcessAndLogOutput (Notice, Error) $
       proc cp [sshKeyPath, localKey]
@@ -177,8 +177,8 @@ deployPush deployPath builders = do
     Right ThunkData_Checkout -> do
       checkGitCleanStatus srcPath True >>= \case
         True -> wrapNixThunkError $ packThunk (ThunkPackConfig False (ThunkConfig Nothing)) srcPath
-        False -> failWith $ T.pack $ "ob deploy push: ensure " <> srcPath <> " has no pending changes and latest is pushed upstream."
-    Left err -> failWith $ "ob deploy push: couldn't read src thunk: " <> T.pack (show err)
+        False -> failWith $ T.pack $ "jenga deploy push: ensure " <> srcPath <> " has no pending changes and latest is pushed upstream."
+    Left err -> failWith $ "jenga deploy push: couldn't read src thunk: " <> T.pack (show err)
   let version = show . _thunkRev_commit $ _thunkPtr_rev thunkPtr
   let moduleFile = deployPath </> "module.nix"
   moduleFileExists <- liftIO $ doesFileExist moduleFile
@@ -299,7 +299,7 @@ deployMobile platform mobileArgs = withProjectRoot "." $ \root -> do
   let srcDir = root </> "src"
       configDir = root </> "config"
   exists <- liftIO $ doesDirectoryExist srcDir
-  unless exists $ failWith "ob test should be run inside of a deploy directory"
+  unless exists $ failWith "jenga test should be run inside of a deploy directory"
   (nixBuildTarget, extraArgs) <- case platform of
     Android -> do
       let keystorePath = root </> "android_keystore.jks"

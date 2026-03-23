@@ -63,7 +63,7 @@ in rec {
     "${ghcObelisk.obelisk-selftest}/bin/obelisk-selftest" +RTS -N -RTS "$@"
   '';
   skeleton = pkgs.runCommand "skeleton" {
-    dir = builtins.filterSource (path: type: builtins.trace path (baseNameOf path != ".obelisk")) ./skeleton;
+    dir = builtins.filterSource (path: type: builtins.trace path (baseNameOf path != ".jenga")) ./skeleton;
   } ''
     ln -s "$dir" "$out"
   '';
@@ -462,7 +462,7 @@ in rec {
       exe = serverOn mainProjectOut dummyVersion;
       server = args@{ hostName, adminEmail, routeHost, enableHttps, version, module ? serverModules.mkBaseEc2, redirectHosts ? [], configHash ? "" }:
         server (args // { exe = linuxExe version; });
-      obelisk = import (base' + "/.obelisk/impl") {};
+      obelisk = import (base' + "/.jenga/impl") {};
     };
   haskellPackageSets = {
     inherit (reflex-platform) ghc ghcjs;

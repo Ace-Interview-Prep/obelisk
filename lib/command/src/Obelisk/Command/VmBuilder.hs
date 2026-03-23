@@ -60,7 +60,7 @@ nixBuildersArgString stateDir = unwords [containerName, "x86_64-linux", stateDir
 
 -- | Name of Docker container used for the VM builder.
 containerName :: IsString str => str
-containerName = "obelisk-docker-nix-builder"
+containerName = "jenga-docker-nix-builder"
 
 -- | Check to see if the Docker container exists. This will exit with a helpful message if Docker is not installed.
 containerExists :: MonadObelisk m => FilePath -> m Bool
@@ -125,7 +125,7 @@ setupInstructions sshIdFile = T.unlines
   , "We've created a Docker container that can build for Linux. However, the Nix"
   , "daemon needs to connect to this container as root. Please run the following"
   , "commands in a root shell (`sudo su -`) to tell SSH how to access the"
-  , "container. Then try your obelisk command again."
+  , "container. Then try your jenga command again."
   , ""
   , "# sudo su -"
   , "touch ~/.ssh/config"
@@ -199,4 +199,4 @@ CMD ["/nix/store/mydwfxzk8bka4iwjml033dir6gkmqwic-openssh-7.7p1/bin/sshd", "-D",
 |]
 
 sshKeyFileName :: FilePath
-sshKeyFileName = "id_ed25519_obelisk_vm"
+sshKeyFileName = "id_ed25519_jenga_vm"
