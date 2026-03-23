@@ -46,7 +46,7 @@ applyPackages origPath inPath outPath packagePaths' = do
     [] -> do
       hPutStrLn stderr $ "Error: Unable to find cabal information for " <> origPath <> "; Skipping preprocessor."
       giveUp
-    packagePath:_ -> parseCabalPackage' packagePath >>= \case
+    packagePath:_ -> parseCabalPackage' Nothing packagePath >>= \case
       Left err -> do
         hPutStrLn stderr $ "Error: Unable to parse cabal package " <> packagePath <> "; Skipping preprocessor on " <> origPath <> ". Error: " <> show err
         giveUp

@@ -46,9 +46,9 @@ import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.Traversable (for)
 import Debug.Trace (trace)
 #if MIN_VERSION_Cabal(3,2,1)
-import Distribution.Compiler (CompilerFlavor(..), perCompilerFlavorToList, PerCompilerFlavor)
+import Distribution.Compiler (CompilerId(..), CompilerFlavor(..), perCompilerFlavorToList, PerCompilerFlavor)
 #else
-import Distribution.Compiler (CompilerFlavor(..), PerCompilerFlavor)
+import Distribution.Compiler (CompilerId(..), CompilerFlavor(..), PerCompilerFlavor)
 #endif
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescription)
 #if MIN_VERSION_Cabal(3,2,1)
@@ -57,7 +57,7 @@ import Distribution.Fields.ParseResult (runParseResult)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescription, runParseResult)
 #endif
 import Distribution.Pretty (prettyShow)
-import Distribution.Simple.Compiler (PackageDB (GlobalPackageDB))
+import Distribution.Simple.Compiler (PackageDB (GlobalPackageDB), compilerId)
 import Distribution.Simple.Configure (configCompilerEx, getInstalledPackages)
 import Distribution.Simple.PackageIndex (InstalledPackageIndex, lookupDependency)
 import Distribution.Simple.Program.Db (defaultProgramDb)
@@ -76,7 +76,8 @@ import Distribution.Types.InstalledPackageInfo (compatPackageKey)
 import Distribution.Types.Library (libBuildInfo)
 import Distribution.Types.LibraryName (LibraryName(..))
 import Distribution.Types.PackageName (mkPackageName)
-import Distribution.Types.VersionRange (anyVersion)
+import Distribution.Types.Version (Version)
+import Distribution.Types.VersionRange (anyVersion, withinRange)
 import Distribution.Utils.Generic (toUTF8BS, readUTF8File)
 #if MIN_VERSION_Cabal(3,2,1)
 import qualified Distribution.Parsec.Warning as Dist
@@ -352,7 +353,7 @@ parseCabalPackage
   :: MonadObelisk m
   => FilePath -- ^ Package directory
   -> m (Maybe CabalPackageInfo)
-parseCabalPackage dir = parseCabalPackage' dir >>= \case
+parseCabalPackage dir = parseCabalPackage' Nothing dir >>= \case
   Left err -> throwError (ObeliskError_Unstructured err)
   Right (Just (warnings, pkgInfo)) -> do
     for_ warnings $ putLog Warning . T.pack . show
@@ -360,11 +361,14 @@ parseCabalPackage dir = parseCabalPackage' dir >>= \case
   Right Nothing -> pure Nothing
 
 -- | Like 'parseCabalPackage' but returns errors and warnings directly so as to avoid 'MonadObelisk'.
+-- The 'Maybe Version' is the GHC version used to evaluate @impl(ghc ...)@ conditionals.
+-- When 'Nothing', all @impl(ghc ...)@ conditionals are treated as 'True'.
 parseCabalPackage'
   :: (MonadIO m)
-  => FilePath -- ^ Package directory
+  => Maybe Version -- ^ GHC version for evaluating @impl(ghc ...)@ conditionals
+  -> FilePath -- ^ Package directory
   -> m (Either T.Text (Maybe ([PWarning], CabalPackageInfo)))
-parseCabalPackage' pkg = runExceptT $ do
+parseCabalPackage' mGhcVersion pkg = runExceptT $ do
   (cabalContents, packageFile, packageName) <- guessCabalPackageFile pkg >>= \case
     Left GuessPackageFileError_NotFound -> throwError $ "No .cabal or package.yaml file found in " <> T.pack pkg
     Left (GuessPackageFileError_Ambiguous _) -> throwError $ "Unable to determine which .cabal file to use in " <> T.pack pkg
@@ -386,7 +390,7 @@ parseCabalPackage' pkg = runExceptT $ do
     evalConfVar v = Right $ case v of
       OS osVar -> Just osVar == osConfVar
       Arch archVar -> Just archVar == archConfVar
-      Impl GHC _ -> True -- TODO: Actually check version range
+      Impl GHC vr -> maybe True (`withinRange` vr) mGhcVersion
       _ -> False
 #if MIN_VERSION_Cabal(3,2,1)
   case (view condLibrary) <$> result of
@@ -502,9 +506,18 @@ getGhciSessionSettings
   => f CabalPackageInfo -- ^ List of packages to load into ghci
   -> FilePath -- ^ All paths will be relative to this path
   -> m [String]
-getGhciSessionSettings (toList -> packageInfos) pathBase = do
+getGhciSessionSettings (toList -> initialPackageInfos) pathBase = do
   selfExe <- liftIO $ canonicalizePath =<< getExecutablePath
-  installedPackageIndex <- loadPackageIndex packageInfos pathBase
+  (installedPackageIndex, ghcVersion) <- loadPackageIndex initialPackageInfos pathBase
+
+  -- Re-parse with actual GHC version so impl(ghc ...) conditionals are
+  -- evaluated correctly.  The initial parse (used to set up the nix shell)
+  -- treats all impl(ghc ...) as True; re-parsing with the real version
+  -- ensures dependencies and options match what nix actually provides.
+  packageInfos <- fmap catMaybes $ for initialPackageInfos $ \pkg ->
+    parseCabalPackage' (Just ghcVersion) (_cabalPackageInfo_packageRoot pkg) >>= \case
+      Right (Just (_, info)) -> pure (Just info)
+      _ -> pure Nothing
 
   (pkgFiles, pkgSrcPaths :: [NonEmpty FilePath]) <- fmap unzip $ liftIO $ for packageInfos $ \pkg -> do
     canonicalSrcDirs <- traverse canonicalizePath $ (_cabalPackageInfo_packageRoot pkg </>) <$> _cabalPackageInfo_sourceDirs pkg
@@ -518,16 +531,16 @@ getGhciSessionSettings (toList -> packageInfos) pathBase = do
     <> concatMap (\p -> ["-optF", p]) pkgFiles
     <> ["-i" <> intercalate ":" (concatMap toList pkgSrcPaths)]
     <> concatMap (\packageId -> ["-package-id", packageId ])
-                 (packageIds installedPackageIndex)
+                 (resolvePackageIds packageInfos installedPackageIndex)
   where
     -- Package names we're building and not needed from the package DB
     packageNames =
       map (mkPackageName . T.unpack . _cabalPackageInfo_packageName)
-          packageInfos
-    packageIds installedPackageIndex = Set.toList $ Set.fromList $
+          initialPackageInfos
+    resolvePackageIds pkgInfos installedPackageIndex = Set.toList $ Set.fromList $
       map (dependencyPackageId installedPackageIndex) $
           filter ((`notElem` packageNames) . depPkgName) $
-          concatMap _cabalPackageInfo_buildDepends packageInfos <>
+          concatMap _cabalPackageInfo_buildDepends pkgInfos <>
             [Dependency (mkPackageName "obelisk-run") anyVersion (Set.singleton LMainLibName)]
     dependencyPackageId installedPackageIndex dep =
       case lookupDependency installedPackageIndex (depPkgName dep) (depVerRange dep) of
@@ -537,13 +550,15 @@ getGhciSessionSettings (toList -> packageInfos) pathBase = do
 
 
 -- Load the package index used by the GHC in this path's nix project
-loadPackageIndex :: MonadObelisk m => [CabalPackageInfo] -> FilePath -> m InstalledPackageIndex
+loadPackageIndex :: MonadObelisk m => [CabalPackageInfo] -> FilePath -> m (InstalledPackageIndex, Version)
 loadPackageIndex packageInfos root = do
   ghcPath <- getPathInNixEnvironment "bash -c 'type -p ghc'"
   ghcPkgPath <- getPathInNixEnvironment "bash -c 'type -p ghc-pkg'"
   (compiler, _platform, programDb) <- liftIO
     $ configCompilerEx (Just GHC) (Just ghcPath) (Just ghcPkgPath) defaultProgramDb Verbosity.silent
-  liftIO $ getInstalledPackages Verbosity.silent compiler [GlobalPackageDB] programDb
+  let CompilerId _ ghcVersion = compilerId compiler
+  pkgIndex <- liftIO $ getInstalledPackages Verbosity.silent compiler [GlobalPackageDB] programDb
+  pure (pkgIndex, ghcVersion)
   where
     getPathInNixEnvironment cmd = do
       path <- readProcessAndLogStderr Debug =<< mkObNixShellProc root False True (packageInfoToNamePathMap packageInfos) "ghc" (Just cmd)
