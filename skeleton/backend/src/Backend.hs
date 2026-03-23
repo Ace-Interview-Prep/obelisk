@@ -122,11 +122,12 @@ mkPureConfigsOrAbort dbPool configsDir = do
          && (isJust ngrokUrl)
       then ProxiedDomain <$> (getDomain =<< ngrokUrl) <*> getDomain baseUri
       else DirectDomain <$> getDomain baseUri
+  let ddHint = " (try: dd if=/dev/urandom bs=96 count=1 of=config/backend/clientSessionKey)"
   csk <- case CS.initKey <$> Map.lookup "backend/clientSessionKey" configsDir of
       Just (Right csk') -> return csk'
-      Just (Left e) -> error e
+      Just (Left e) -> error $ "<config/backend/clientSessionKey> is invalid: " <> e <> ddHint
       Nothing -> liftIO $ do
-        error "<config/backend/clientSessionKey> does not exist. (try: dd if=/dev/urandom bs=96 count=1 of=config/backend/clientSessionKey)"
+        error $ "<config/backend/clientSessionKey> does not exist." <> ddHint
   adminAddress :: Address <- getJsonConfig "backend/adminAddress.json" configsDir
   emailConfig :: EmailConfig <- getJsonConfig "backend/smtp.json" configsDir
   pure $ ConfigEnv
