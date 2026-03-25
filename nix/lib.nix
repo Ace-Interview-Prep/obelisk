@@ -32,6 +32,20 @@ let src = ../.;
 
     serverModule = ./server.nix;
 
+    # haskell-src-exts uses legacy Build-Tools: happy >= 1.19 which cabal
+    # resolves independently from constraints, pulling in happy-2.2 alongside
+    # ghc-lib-parser's happy-2.1.7.  Upgrade to build-tool-depends so
+    # constraints: happy < 2.2 applies and both use happy-2.1.7.
+    haskell-src-exts-patched = pkgs.runCommand "haskell-src-exts" {} ''
+      cp -r ${builtins.fetchTarball {
+        url = "https://hackage.haskell.org/package/haskell-src-exts-1.23.1/haskell-src-exts-1.23.1.tar.gz";
+        sha256 = "144q88agqqfpc8z1h2jr6mgx5xs72wxkrx4kbpsfg9cza3jm9fbx";
+      }} $out
+      chmod -R +w $out
+      sed -i 's/Cabal-Version:.*>=.*1.10/cabal-version: 2.0/' $out/haskell-src-exts.cabal
+      sed -i 's/Build-Tools:.*happy >= 1.19/build-tool-depends: happy:happy >= 1.19 \&\& < 2.2/' $out/haskell-src-exts.cabal
+    '';
+
 in rec {
   inherit src obelisk-asset-manifest-generate wasi-shim assets docs serverModule;
 
@@ -53,9 +67,20 @@ in rec {
     obelisk-setup = src + "/lib/setup";
     tabulation = src + "/lib/tabulation";
 
+    # jenga-auth packages — uncomment when their deps (rhyolite, beam, signed-data, etc.) are ported to GHC 9.14:
+    # jenga-auth-backend = src + "/lib/jenga-auth-backend";
+    # jenga-auth-common = src + "/lib/jenga-auth-common";
+    # jenga-auth-frontend = src + "/lib/jenga-auth-frontend";
+    lamarckian = src + "/lib/lamarckian";
+    lamarckian-core = src + "/lib/lamarckian-core";
+    scrappy-core = src + "/lib/scrappy-core";
+    scrappy-template = src + "/lib/scrappy-template";
+
     reflex-dom = src + "/deps/reflex-dom/reflex-dom";
     reflex-dom-core = src + "/deps/reflex-dom/reflex-dom-core";
     chrome-test-utils = src + "/deps/reflex-dom/chrome-test-utils";
+
+    haskell-src-exts = haskell-src-exts-patched;
   };
 
   extraCabalProject = [
