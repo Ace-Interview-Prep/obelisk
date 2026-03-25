@@ -1,0 +1,384 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="decl"><span class="nottickedoff">never executed</span> <span class="tickonlytrue">always true</span> <span class="tickonlyfalse">always false</span></span>
+</pre>
+<pre>
+<span class="lineno">    1 </span>{-# LANGUAGE BangPatterns #-}
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- |
+<span class="lineno">    4 </span>-- Module      : TemplatePropertyTest
+<span class="lineno">    5 </span>-- Description : QuickCheck property tests for Scrappy.Template
+<span class="lineno">    6 </span>-- Copyright   : (c) Galen Sprout, 2024
+<span class="lineno">    7 </span>-- License     : BSD-3-Clause
+<span class="lineno">    8 </span>-- Maintainer  : galen.sprout@gmail.com
+<span class="lineno">    9 </span>--
+<span class="lineno">   10 </span>-- Property-based tests verifying roundtrip parsing, substitution correctness,
+<span class="lineno">   11 </span>-- no re-expansion, delimiter isolation, and identity laws for the template engine.
+<span class="lineno">   12 </span>
+<span class="lineno">   13 </span>-- | @since 0.1.0.0
+<span class="lineno">   14 </span>module TemplatePropertyTest (spec) where
+<span class="lineno">   15 </span>
+<span class="lineno">   16 </span>import Test.Hspec (Spec, describe)
+<span class="lineno">   17 </span>import Test.Hspec.QuickCheck (prop)
+<span class="lineno">   18 </span>import Test.QuickCheck
+<span class="lineno">   19 </span>  ( Gen, (==&gt;), forAll, property, choose, elements
+<span class="lineno">   20 </span>  , oneof, suchThat, vectorOf, counterexample )
+<span class="lineno">   21 </span>
+<span class="lineno">   22 </span>import Text.Parsec (parse, eof, char)
+<span class="lineno">   23 </span>
+<span class="lineno">   24 </span>import Scrappy.Template
+<span class="lineno">   25 </span>  ( manyTill_, validName, Name
+<span class="lineno">   26 </span>  , templateParser, templateParserWith
+<span class="lineno">   27 </span>  , unTemplate, unTemplateWith )
+<span class="lineno">   28 </span>
+<span class="lineno">   29 </span>import qualified Data.Map as Map
+<span class="lineno">   30 </span>import Data.List (isInfixOf)
+<span class="lineno">   31 </span>
+<span class="lineno">   32 </span>
+<span class="lineno">   33 </span>-- =========================================================================
+<span class="lineno">   34 </span>-- Generators
+<span class="lineno">   35 </span>-- =========================================================================
+<span class="lineno">   36 </span>
+<span class="lineno">   37 </span>-- | Generate a valid template name: starts with letter\/underscore\/hyphen,
+<span class="lineno">   38 </span>-- followed by alphanumeric\/underscore\/hyphen.
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>-- @since 0.1.0.0
+<span class="lineno">   41 </span>genValidName :: Gen Name
+<span class="lineno">   42 </span><span class="decl"><span class="istickedoff">genValidName = do</span>
+<span class="lineno">   43 </span><span class="spaces">  </span><span class="istickedoff">first_ &lt;- oneof</span>
+<span class="lineno">   44 </span><span class="spaces">    </span><span class="istickedoff">[ elements (['a'..'z'] ++ ['A'..'Z'])</span>
+<span class="lineno">   45 </span><span class="spaces">    </span><span class="istickedoff">, pure '_'</span>
+<span class="lineno">   46 </span><span class="spaces">    </span><span class="istickedoff">, pure '-'</span>
+<span class="lineno">   47 </span><span class="spaces">    </span><span class="istickedoff">]</span>
+<span class="lineno">   48 </span><span class="spaces">  </span><span class="istickedoff">n &lt;- choose (0, 20 :: Int)</span>
+<span class="lineno">   49 </span><span class="spaces">  </span><span class="istickedoff">rest &lt;- vectorOf n $ oneof</span>
+<span class="lineno">   50 </span><span class="spaces">    </span><span class="istickedoff">[ elements (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])</span>
+<span class="lineno">   51 </span><span class="spaces">    </span><span class="istickedoff">, pure '_'</span>
+<span class="lineno">   52 </span><span class="spaces">    </span><span class="istickedoff">, pure '-'</span>
+<span class="lineno">   53 </span><span class="spaces">    </span><span class="istickedoff">]</span>
+<span class="lineno">   54 </span><span class="spaces">  </span><span class="istickedoff">pure (first_ : rest)</span></span>
+<span class="lineno">   55 </span>
+<span class="lineno">   56 </span>-- | Generate a name that starts with a digit (always invalid).
+<span class="lineno">   57 </span>--
+<span class="lineno">   58 </span>-- @since 0.1.0.0
+<span class="lineno">   59 </span>genDigitStartName :: Gen String
+<span class="lineno">   60 </span><span class="decl"><span class="istickedoff">genDigitStartName = do</span>
+<span class="lineno">   61 </span><span class="spaces">  </span><span class="istickedoff">d &lt;- elements ['0'..'9']</span>
+<span class="lineno">   62 </span><span class="spaces">  </span><span class="istickedoff">n &lt;- choose (0, 10 :: Int)</span>
+<span class="lineno">   63 </span><span class="spaces">  </span><span class="istickedoff">rest &lt;- vectorOf n $ elements (['a'..'z'] ++ ['0'..'9'] ++ ['_', '-'])</span>
+<span class="lineno">   64 </span><span class="spaces">  </span><span class="istickedoff">pure (d : rest)</span></span>
+<span class="lineno">   65 </span>
+<span class="lineno">   66 </span>-- | Generate a pair of safe delimiters that contain no name-chars
+<span class="lineno">   67 </span>-- (letters, digits, underscore, hyphen) to avoid ambiguity with validName.
+<span class="lineno">   68 </span>--
+<span class="lineno">   69 </span>-- @since 0.1.0.0
+<span class="lineno">   70 </span>genSafeDelimiterPair :: Gen (String, String)
+<span class="lineno">   71 </span><span class="decl"><span class="istickedoff">genSafeDelimiterPair = elements</span>
+<span class="lineno">   72 </span><span class="spaces">  </span><span class="istickedoff">[ (&quot;{{&gt;&gt;=&quot;, &quot;}}&quot;)</span>
+<span class="lineno">   73 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;{{::=&quot;, &quot;}}&quot;)</span>
+<span class="lineno">   74 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;{%&quot;, &quot;%}&quot;)</span>
+<span class="lineno">   75 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;&lt;&lt;&quot;, &quot;&gt;&gt;&quot;)</span>
+<span class="lineno">   76 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;[&quot;, &quot;]&quot;)</span>
+<span class="lineno">   77 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;&lt;&lt;&lt;START&gt;&gt;&gt;&quot;, &quot;&lt;&lt;&lt;END&gt;&gt;&gt;&quot;)</span>
+<span class="lineno">   78 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;((=&quot;, &quot;))&quot;)</span>
+<span class="lineno">   79 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;{|&quot;, &quot;|}&quot;)</span>
+<span class="lineno">   80 </span><span class="spaces">  </span><span class="istickedoff">]</span></span>
+<span class="lineno">   81 </span>
+<span class="lineno">   82 </span>-- | Generate a non-colliding delimiter pair — one that does NOT start with @{{&gt;&gt;=@
+<span class="lineno">   83 </span>-- so it won't accidentally match the default syntax.
+<span class="lineno">   84 </span>--
+<span class="lineno">   85 </span>-- @since 0.1.0.0
+<span class="lineno">   86 </span>genNonDefaultDelimiterPair :: Gen (String, String)
+<span class="lineno">   87 </span><span class="decl"><span class="istickedoff">genNonDefaultDelimiterPair = elements</span>
+<span class="lineno">   88 </span><span class="spaces">  </span><span class="istickedoff">[ (&quot;{{::=&quot;, &quot;}}&quot;)</span>
+<span class="lineno">   89 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;{%&quot;, &quot;%}&quot;)</span>
+<span class="lineno">   90 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;&lt;&lt;&quot;, &quot;&gt;&gt;&quot;)</span>
+<span class="lineno">   91 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;[&quot;, &quot;]&quot;)</span>
+<span class="lineno">   92 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;((=&quot;, &quot;))&quot;)</span>
+<span class="lineno">   93 </span><span class="spaces">  </span><span class="istickedoff">, (&quot;{|&quot;, &quot;|}&quot;)</span>
+<span class="lineno">   94 </span><span class="spaces">  </span><span class="istickedoff">]</span></span>
+<span class="lineno">   95 </span>
+<span class="lineno">   96 </span>-- | Generate a plain text string guaranteed not to contain the default
+<span class="lineno">   97 </span>-- template opening delimiter @{{&gt;&gt;=@.
+<span class="lineno">   98 </span>--
+<span class="lineno">   99 </span>-- @since 0.1.0.0
+<span class="lineno">  100 </span>genPlainText :: Gen String
+<span class="lineno">  101 </span><span class="decl"><span class="istickedoff">genPlainText = do</span>
+<span class="lineno">  102 </span><span class="spaces">  </span><span class="istickedoff">n &lt;- choose (0, 50 :: Int)</span>
+<span class="lineno">  103 </span><span class="spaces">  </span><span class="istickedoff">vectorOf n (elements safeChars)</span>
+<span class="lineno">  104 </span><span class="spaces">    </span><span class="istickedoff">`suchThat` (\s -&gt; not (&quot;{{&gt;&gt;=&quot; `isInfixOf` s))</span>
+<span class="lineno">  105 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  106 </span><span class="spaces">    </span><span class="istickedoff">safeChars :: [Char]</span>
+<span class="lineno">  107 </span><span class="spaces">    </span><span class="istickedoff">safeChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ &quot; .,;:!?+-*/&quot;</span></span>
+<span class="lineno">  108 </span>
+<span class="lineno">  109 </span>-- | Generate a plain text string guaranteed not to contain a given
+<span class="lineno">  110 </span>-- delimiter pair as substrings.
+<span class="lineno">  111 </span>--
+<span class="lineno">  112 </span>-- @since 0.1.0.0
+<span class="lineno">  113 </span>genPlainTextFor :: String -&gt; String -&gt; Gen String
+<span class="lineno">  114 </span><span class="decl"><span class="istickedoff">genPlainTextFor open close = do</span>
+<span class="lineno">  115 </span><span class="spaces">  </span><span class="istickedoff">n &lt;- choose (0, 50 :: Int)</span>
+<span class="lineno">  116 </span><span class="spaces">  </span><span class="istickedoff">vectorOf n (elements safeChars)</span>
+<span class="lineno">  117 </span><span class="spaces">    </span><span class="istickedoff">`suchThat` (\s -&gt; not (open `isInfixOf` s) &amp;&amp; not (close `isInfixOf` s))</span>
+<span class="lineno">  118 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  119 </span><span class="spaces">    </span><span class="istickedoff">safeChars :: [Char]</span>
+<span class="lineno">  120 </span><span class="spaces">    </span><span class="istickedoff">safeChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ &quot; .,;:!?+-*/&quot;</span></span>
+<span class="lineno">  121 </span>
+<span class="lineno">  122 </span>
+<span class="lineno">  123 </span>-- =========================================================================
+<span class="lineno">  124 </span>-- Helpers
+<span class="lineno">  125 </span>-- =========================================================================
+<span class="lineno">  126 </span>
+<span class="lineno">  127 </span>-- | Force a string to its full spine and return it.
+<span class="lineno">  128 </span>--
+<span class="lineno">  129 </span>-- @since 0.1.0.0
+<span class="lineno">  130 </span>forceString :: String -&gt; String
+<span class="lineno">  131 </span><span class="decl"><span class="istickedoff">forceString [] = []</span>
+<span class="lineno">  132 </span><span class="spaces"></span><span class="istickedoff">forceString (x:xs) = x `seq` forceString xs `seq` (x:xs)</span></span>
+<span class="lineno">  133 </span>{-# INLINE forceString #-}
+<span class="lineno">  134 </span>
+<span class="lineno">  135 </span>
+<span class="lineno">  136 </span>-- =========================================================================
+<span class="lineno">  137 </span>-- Properties
+<span class="lineno">  138 </span>-- =========================================================================
+<span class="lineno">  139 </span>
+<span class="lineno">  140 </span>-- | @since 0.1.0.0
+<span class="lineno">  141 </span>spec :: Spec
+<span class="lineno">  142 </span><span class="decl"><span class="istickedoff">spec = do</span>
+<span class="lineno">  143 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  144 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  145 </span><span class="spaces">  </span><span class="istickedoff">-- validName</span>
+<span class="lineno">  146 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  147 </span><span class="spaces">  </span><span class="istickedoff">describe &quot;Property: validName&quot; $ do</span>
+<span class="lineno">  148 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  149 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;roundtrip: generated valid names parse back to themselves&quot; $</span>
+<span class="lineno">  150 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \name -&gt;</span>
+<span class="lineno">  151 </span><span class="spaces">        </span><span class="istickedoff">let !s = &quot;&quot; :: String</span>
+<span class="lineno">  152 </span><span class="spaces">        </span><span class="istickedoff">in  parse (validName &lt;* eof) <span class="nottickedoff">s</span> name == Right name</span>
+<span class="lineno">  153 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  154 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;rejects digit-start names&quot; $</span>
+<span class="lineno">  155 </span><span class="spaces">      </span><span class="istickedoff">forAll genDigitStartName $ \name -&gt;</span>
+<span class="lineno">  156 </span><span class="spaces">        </span><span class="istickedoff">let !name' = forceString name</span>
+<span class="lineno">  157 </span><span class="spaces">            </span><span class="istickedoff">!s = &quot;&quot; :: String</span>
+<span class="lineno">  158 </span><span class="spaces">            </span><span class="istickedoff">!p = validName &lt;* <span class="nottickedoff">eof</span></span>
+<span class="lineno">  159 </span><span class="spaces">            </span><span class="istickedoff">result = parse p <span class="nottickedoff">s</span> name'</span>
+<span class="lineno">  160 </span><span class="spaces">        </span><span class="istickedoff">in  case result of</span>
+<span class="lineno">  161 </span><span class="spaces">              </span><span class="istickedoff">Left _  -&gt; True</span>
+<span class="lineno">  162 </span><span class="spaces">              </span><span class="istickedoff">Right _ -&gt; <span class="nottickedoff">False</span></span>
+<span class="lineno">  163 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  164 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;rejects empty string&quot; $</span>
+<span class="lineno">  165 </span><span class="spaces">      </span><span class="istickedoff">property $</span>
+<span class="lineno">  166 </span><span class="spaces">        </span><span class="istickedoff">let !s = &quot;&quot; :: String</span>
+<span class="lineno">  167 </span><span class="spaces">            </span><span class="istickedoff">!p = validName &lt;* <span class="nottickedoff">eof</span></span>
+<span class="lineno">  168 </span><span class="spaces">            </span><span class="istickedoff">result = parse p <span class="nottickedoff">s</span> &quot;&quot;</span>
+<span class="lineno">  169 </span><span class="spaces">        </span><span class="istickedoff">in  case result of</span>
+<span class="lineno">  170 </span><span class="spaces">              </span><span class="istickedoff">Left _  -&gt; True</span>
+<span class="lineno">  171 </span><span class="spaces">              </span><span class="istickedoff">Right _ -&gt; <span class="nottickedoff">False</span></span>
+<span class="lineno">  172 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  173 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;first char of generated name is letter, underscore, or hyphen&quot; $</span>
+<span class="lineno">  174 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \name -&gt;</span>
+<span class="lineno">  175 </span><span class="spaces">        </span><span class="istickedoff">let !name' = forceString name</span>
+<span class="lineno">  176 </span><span class="spaces">            </span><span class="istickedoff">validFirst = ['a'..'z'] ++ ['A'..'Z'] ++ ['_', '-']</span>
+<span class="lineno">  177 </span><span class="spaces">        </span><span class="istickedoff">in  case name' of</span>
+<span class="lineno">  178 </span><span class="spaces">              </span><span class="istickedoff">(c:_) -&gt; c `elem` validFirst</span>
+<span class="lineno">  179 </span><span class="spaces">              </span><span class="istickedoff">[]    -&gt; <span class="nottickedoff">error &quot;genValidName produced empty string&quot;</span></span>
+<span class="lineno">  180 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  181 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;rest chars of generated name are alphanumeric, underscore, or hyphen&quot; $</span>
+<span class="lineno">  182 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \name -&gt;</span>
+<span class="lineno">  183 </span><span class="spaces">        </span><span class="istickedoff">let !name' = forceString name</span>
+<span class="lineno">  184 </span><span class="spaces">            </span><span class="istickedoff">validRest = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['_', '-']</span>
+<span class="lineno">  185 </span><span class="spaces">        </span><span class="istickedoff">in  case name' of</span>
+<span class="lineno">  186 </span><span class="spaces">              </span><span class="istickedoff">(_:rest) -&gt; all (`elem` validRest) rest</span>
+<span class="lineno">  187 </span><span class="spaces">              </span><span class="istickedoff">[]       -&gt; <span class="nottickedoff">error &quot;genValidName produced empty string&quot;</span></span>
+<span class="lineno">  188 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  189 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  190 </span><span class="spaces">  </span><span class="istickedoff">-- templateParser</span>
+<span class="lineno">  191 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  192 </span><span class="spaces">  </span><span class="istickedoff">describe &quot;Property: templateParser&quot; $ do</span>
+<span class="lineno">  193 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  194 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;roundtrip: wrapping a valid name in {{&gt;&gt;= ... }} parses to the name&quot; $</span>
+<span class="lineno">  195 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \name -&gt;</span>
+<span class="lineno">  196 </span><span class="spaces">        </span><span class="istickedoff">let !s = &quot;&quot; :: String</span>
+<span class="lineno">  197 </span><span class="spaces">        </span><span class="istickedoff">in  parse (templateParser &lt;* eof) <span class="nottickedoff">s</span> (&quot;{{&gt;&gt;=&quot; ++ name ++ &quot;}}&quot;) == Right name</span>
+<span class="lineno">  198 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  199 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;roundtrip with arbitrary safe delimiters&quot; $</span>
+<span class="lineno">  200 </span><span class="spaces">      </span><span class="istickedoff">forAll genSafeDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  201 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \name -&gt;</span>
+<span class="lineno">  202 </span><span class="spaces">        </span><span class="istickedoff">let !s = &quot;&quot; :: String</span>
+<span class="lineno">  203 </span><span class="spaces">            </span><span class="istickedoff">!close' = forceString close</span>
+<span class="lineno">  204 </span><span class="spaces">        </span><span class="istickedoff">in  parse (templateParserWith open close' &lt;* eof) <span class="nottickedoff">s</span> (open ++ name ++ close') == Right name</span>
+<span class="lineno">  205 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  206 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;mismatched delimiters cause parse failure&quot; $</span>
+<span class="lineno">  207 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \name -&gt;</span>
+<span class="lineno">  208 </span><span class="spaces">        </span><span class="istickedoff">let !name' = forceString name</span>
+<span class="lineno">  209 </span><span class="spaces">            </span><span class="istickedoff">!s = &quot;&quot; :: String</span>
+<span class="lineno">  210 </span><span class="spaces">            </span><span class="istickedoff">!close' = forceString &quot;}}&quot;</span>
+<span class="lineno">  211 </span><span class="spaces">            </span><span class="istickedoff">!input = forceString (&quot;{{&gt;&gt;=&quot; ++ name' ++ &quot;}}&quot;)</span>
+<span class="lineno">  212 </span><span class="spaces">            </span><span class="istickedoff">result = parse (templateParserWith &quot;{{::=&quot; <span class="nottickedoff">close'</span> &lt;* <span class="nottickedoff">eof</span>) <span class="nottickedoff">s</span> input</span>
+<span class="lineno">  213 </span><span class="spaces">        </span><span class="istickedoff">in  case result of</span>
+<span class="lineno">  214 </span><span class="spaces">              </span><span class="istickedoff">Left _  -&gt; True</span>
+<span class="lineno">  215 </span><span class="spaces">              </span><span class="istickedoff">Right _ -&gt; <span class="nottickedoff">False</span></span>
+<span class="lineno">  216 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  217 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;empty name between delimiters fails&quot; $</span>
+<span class="lineno">  218 </span><span class="spaces">      </span><span class="istickedoff">forAll genSafeDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  219 </span><span class="spaces">        </span><span class="istickedoff">let !close' = forceString close</span>
+<span class="lineno">  220 </span><span class="spaces">            </span><span class="istickedoff">!s = &quot;&quot; :: String</span>
+<span class="lineno">  221 </span><span class="spaces">            </span><span class="istickedoff">!input = forceString (open ++ close')</span>
+<span class="lineno">  222 </span><span class="spaces">            </span><span class="istickedoff">result = parse (templateParserWith open <span class="nottickedoff">close'</span> &lt;* <span class="nottickedoff">eof</span>) <span class="nottickedoff">s</span> input</span>
+<span class="lineno">  223 </span><span class="spaces">        </span><span class="istickedoff">in  case result of</span>
+<span class="lineno">  224 </span><span class="spaces">              </span><span class="istickedoff">Left _  -&gt; True</span>
+<span class="lineno">  225 </span><span class="spaces">              </span><span class="istickedoff">Right _ -&gt; <span class="nottickedoff">False</span></span>
+<span class="lineno">  226 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  227 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;digit-start name between delimiters fails&quot; $</span>
+<span class="lineno">  228 </span><span class="spaces">      </span><span class="istickedoff">forAll genSafeDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  229 </span><span class="spaces">      </span><span class="istickedoff">forAll genDigitStartName $ \name -&gt;</span>
+<span class="lineno">  230 </span><span class="spaces">        </span><span class="istickedoff">let !name' = forceString name</span>
+<span class="lineno">  231 </span><span class="spaces">            </span><span class="istickedoff">!close' = forceString close</span>
+<span class="lineno">  232 </span><span class="spaces">            </span><span class="istickedoff">!s = &quot;&quot; :: String</span>
+<span class="lineno">  233 </span><span class="spaces">            </span><span class="istickedoff">!input = forceString (open ++ name' ++ close')</span>
+<span class="lineno">  234 </span><span class="spaces">            </span><span class="istickedoff">result = parse (templateParserWith open <span class="nottickedoff">close'</span> &lt;* <span class="nottickedoff">eof</span>) <span class="nottickedoff">s</span> input</span>
+<span class="lineno">  235 </span><span class="spaces">        </span><span class="istickedoff">in  case result of</span>
+<span class="lineno">  236 </span><span class="spaces">              </span><span class="istickedoff">Left _  -&gt; True</span>
+<span class="lineno">  237 </span><span class="spaces">              </span><span class="istickedoff">Right _ -&gt; <span class="nottickedoff">False</span></span>
+<span class="lineno">  238 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  239 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  240 </span><span class="spaces">  </span><span class="istickedoff">-- unTemplate</span>
+<span class="lineno">  241 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  242 </span><span class="spaces">  </span><span class="istickedoff">describe &quot;Property: unTemplate&quot; $ do</span>
+<span class="lineno">  243 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  244 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;single key substitution&quot; $</span>
+<span class="lineno">  245 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  246 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \v -&gt;</span>
+<span class="lineno">  247 </span><span class="spaces">        </span><span class="istickedoff">unTemplate (Map.singleton k v) (&quot;{{&gt;&gt;=&quot; ++ k ++ &quot;}}&quot;) == v</span>
+<span class="lineno">  248 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  249 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;multiple keys: concatenated placeholders produce concatenated values&quot; $</span>
+<span class="lineno">  250 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k1 -&gt;</span>
+<span class="lineno">  251 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k2 -&gt;</span>
+<span class="lineno">  252 </span><span class="spaces">      </span><span class="istickedoff">k1 /= k2 ==&gt;</span>
+<span class="lineno">  253 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \v1 -&gt;</span>
+<span class="lineno">  254 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \v2 -&gt;</span>
+<span class="lineno">  255 </span><span class="spaces">        </span><span class="istickedoff">let m = Map.fromList [(k1, v1), (k2, v2)]</span>
+<span class="lineno">  256 </span><span class="spaces">            </span><span class="istickedoff">input = &quot;{{&gt;&gt;=&quot; ++ k1 ++ &quot;}}{{&gt;&gt;=&quot; ++ k2 ++ &quot;}}&quot;</span>
+<span class="lineno">  257 </span><span class="spaces">        </span><span class="istickedoff">in  unTemplate m input == v1 ++ v2</span>
+<span class="lineno">  258 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  259 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;no re-expansion: substitution value containing delimiters is literal&quot; $</span>
+<span class="lineno">  260 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k1 -&gt;</span>
+<span class="lineno">  261 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k2 -&gt;</span>
+<span class="lineno">  262 </span><span class="spaces">      </span><span class="istickedoff">k1 /= k2 ==&gt;</span>
+<span class="lineno">  263 </span><span class="spaces">        </span><span class="istickedoff">let dangerousValue = &quot;{{&gt;&gt;=&quot; ++ k2 ++ &quot;}}&quot;</span>
+<span class="lineno">  264 </span><span class="spaces">        </span><span class="istickedoff">in  unTemplate (Map.singleton k1 dangerousValue) (&quot;{{&gt;&gt;=&quot; ++ k1 ++ &quot;}}&quot;) == dangerousValue</span>
+<span class="lineno">  265 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  266 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;plain text without placeholders passes through unchanged&quot; $</span>
+<span class="lineno">  267 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \s -&gt;</span>
+<span class="lineno">  268 </span><span class="spaces">        </span><span class="istickedoff">let !m = (Map.empty :: Map.Map String String)</span>
+<span class="lineno">  269 </span><span class="spaces">        </span><span class="istickedoff">in  Map.size m `seq` unTemplate <span class="nottickedoff">m</span> s == s</span>
+<span class="lineno">  270 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  271 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;empty input always yields empty output&quot; $</span>
+<span class="lineno">  272 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  273 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \v -&gt;</span>
+<span class="lineno">  274 </span><span class="spaces">        </span><span class="istickedoff">let !k' = forceString k</span>
+<span class="lineno">  275 </span><span class="spaces">            </span><span class="istickedoff">!v' = forceString v</span>
+<span class="lineno">  276 </span><span class="spaces">            </span><span class="istickedoff">!m = Map.fromList [(k', <span class="nottickedoff">v'</span>)]</span>
+<span class="lineno">  277 </span><span class="spaces">        </span><span class="istickedoff">in  Map.size m `seq` unTemplate <span class="nottickedoff">m</span> &quot;&quot; == &quot;&quot;</span>
+<span class="lineno">  278 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  279 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;surrounding text is preserved around placeholder&quot; $</span>
+<span class="lineno">  280 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  281 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \v -&gt;</span>
+<span class="lineno">  282 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \prefix -&gt;</span>
+<span class="lineno">  283 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \suffix -&gt;</span>
+<span class="lineno">  284 </span><span class="spaces">        </span><span class="istickedoff">unTemplate (Map.singleton k v) (prefix ++ &quot;{{&gt;&gt;=&quot; ++ k ++ &quot;}}&quot; ++ suffix)</span>
+<span class="lineno">  285 </span><span class="spaces">          </span><span class="istickedoff">== prefix ++ v ++ suffix</span>
+<span class="lineno">  286 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  287 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;repeated same placeholder yields repeated value&quot; $</span>
+<span class="lineno">  288 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  289 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \v -&gt;</span>
+<span class="lineno">  290 </span><span class="spaces">      </span><span class="istickedoff">forAll (choose (1, 10 :: Int)) $ \n -&gt;</span>
+<span class="lineno">  291 </span><span class="spaces">        </span><span class="istickedoff">let m = Map.singleton k v</span>
+<span class="lineno">  292 </span><span class="spaces">            </span><span class="istickedoff">input = concat (replicate n (&quot;{{&gt;&gt;=&quot; ++ k ++ &quot;}}&quot;))</span>
+<span class="lineno">  293 </span><span class="spaces">        </span><span class="istickedoff">in  unTemplate m input == concat (replicate n v)</span>
+<span class="lineno">  294 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  295 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  296 </span><span class="spaces">  </span><span class="istickedoff">-- unTemplateWith (delimiter isolation)</span>
+<span class="lineno">  297 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  298 </span><span class="spaces">  </span><span class="istickedoff">describe &quot;Property: unTemplateWith&quot; $ do</span>
+<span class="lineno">  299 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  300 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;single key with custom delimiters&quot; $</span>
+<span class="lineno">  301 </span><span class="spaces">      </span><span class="istickedoff">forAll genSafeDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  302 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  303 </span><span class="spaces">      </span><span class="istickedoff">forAll (genPlainTextFor open close) $ \v -&gt;</span>
+<span class="lineno">  304 </span><span class="spaces">        </span><span class="istickedoff">unTemplateWith open close (Map.singleton k v) (open ++ k ++ close) == v</span>
+<span class="lineno">  305 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  306 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;default placeholders ignored by non-default delimiters&quot; $</span>
+<span class="lineno">  307 </span><span class="spaces">      </span><span class="istickedoff">forAll genNonDefaultDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  308 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  309 </span><span class="spaces">        </span><span class="istickedoff">let !close' = forceString close</span>
+<span class="lineno">  310 </span><span class="spaces">            </span><span class="istickedoff">!m = (Map.empty :: Map.Map String String)</span>
+<span class="lineno">  311 </span><span class="spaces">            </span><span class="istickedoff">input = &quot;{{&gt;&gt;=&quot; ++ k ++ &quot;}}&quot;</span>
+<span class="lineno">  312 </span><span class="spaces">        </span><span class="istickedoff">in  Map.size m `seq` unTemplateWith open <span class="nottickedoff">close'</span> <span class="nottickedoff">m</span> input == input</span>
+<span class="lineno">  313 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  314 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;custom placeholders ignored by default unTemplate&quot; $</span>
+<span class="lineno">  315 </span><span class="spaces">      </span><span class="istickedoff">forAll genNonDefaultDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  316 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  317 </span><span class="spaces">        </span><span class="istickedoff">let input = open ++ k ++ close</span>
+<span class="lineno">  318 </span><span class="spaces">            </span><span class="istickedoff">!m = (Map.empty :: Map.Map String String)</span>
+<span class="lineno">  319 </span><span class="spaces">        </span><span class="istickedoff">in  not (&quot;{{&gt;&gt;=&quot; `isInfixOf` input) ==&gt;</span>
+<span class="lineno">  320 </span><span class="spaces">            </span><span class="istickedoff">Map.size m `seq` unTemplate <span class="nottickedoff">m</span> input == input</span>
+<span class="lineno">  321 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  322 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;surrounding text preserved with custom delimiters&quot; $</span>
+<span class="lineno">  323 </span><span class="spaces">      </span><span class="istickedoff">forAll genSafeDelimiterPair $ \(open, close) -&gt;</span>
+<span class="lineno">  324 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \k -&gt;</span>
+<span class="lineno">  325 </span><span class="spaces">      </span><span class="istickedoff">forAll (genPlainTextFor open close) $ \v -&gt;</span>
+<span class="lineno">  326 </span><span class="spaces">      </span><span class="istickedoff">forAll (genPlainTextFor open close) $ \prefix -&gt;</span>
+<span class="lineno">  327 </span><span class="spaces">      </span><span class="istickedoff">forAll (genPlainTextFor open close) $ \suffix -&gt;</span>
+<span class="lineno">  328 </span><span class="spaces">        </span><span class="istickedoff">unTemplateWith open close (Map.singleton k v)</span>
+<span class="lineno">  329 </span><span class="spaces">          </span><span class="istickedoff">(prefix ++ open ++ k ++ close ++ suffix)</span>
+<span class="lineno">  330 </span><span class="spaces">          </span><span class="istickedoff">== prefix ++ v ++ suffix</span>
+<span class="lineno">  331 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  332 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  333 </span><span class="spaces">  </span><span class="istickedoff">-- manyTill_</span>
+<span class="lineno">  334 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  335 </span><span class="spaces">  </span><span class="istickedoff">describe &quot;Property: manyTill_&quot; $ do</span>
+<span class="lineno">  336 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  337 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;n copies of 'a' followed by 'b' yields (replicate n 'a', 'b')&quot; $</span>
+<span class="lineno">  338 </span><span class="spaces">      </span><span class="istickedoff">forAll (choose (0, 100 :: Int)) $ \n -&gt;</span>
+<span class="lineno">  339 </span><span class="spaces">        </span><span class="istickedoff">let input = replicate n 'a' ++ &quot;b&quot;</span>
+<span class="lineno">  340 </span><span class="spaces">            </span><span class="istickedoff">!s = &quot;&quot; :: String</span>
+<span class="lineno">  341 </span><span class="spaces">            </span><span class="istickedoff">result = parse (manyTill_ (char 'a') (char 'b')) <span class="nottickedoff">s</span> input</span>
+<span class="lineno">  342 </span><span class="spaces">        </span><span class="istickedoff">in  result == Right (replicate n 'a', 'b')</span>
+<span class="lineno">  343 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  344 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  345 </span><span class="spaces">  </span><span class="istickedoff">-- Cross-cutting</span>
+<span class="lineno">  346 </span><span class="spaces">  </span><span class="istickedoff">-- =======================================================================</span>
+<span class="lineno">  347 </span><span class="spaces">  </span><span class="istickedoff">describe &quot;Property: cross-cutting&quot; $ do</span>
+<span class="lineno">  348 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  349 </span><span class="spaces">    </span><span class="istickedoff">prop &quot;two-pass substitution: default then custom on same string&quot; $</span>
+<span class="lineno">  350 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \kDefault -&gt;</span>
+<span class="lineno">  351 </span><span class="spaces">      </span><span class="istickedoff">forAll genValidName $ \kCustom -&gt;</span>
+<span class="lineno">  352 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \vDefault -&gt;</span>
+<span class="lineno">  353 </span><span class="spaces">      </span><span class="istickedoff">forAll genPlainText $ \vCustom -&gt;</span>
+<span class="lineno">  354 </span><span class="spaces">        </span><span class="istickedoff">let input = &quot;{{&gt;&gt;=&quot; ++ kDefault ++ &quot;}} and {{::=&quot; ++ kCustom ++ &quot;}}&quot;</span>
+<span class="lineno">  355 </span><span class="spaces">            </span><span class="istickedoff">pass1 = unTemplate (Map.singleton kDefault vDefault) input</span>
+<span class="lineno">  356 </span><span class="spaces">            </span><span class="istickedoff">pass2 = unTemplateWith &quot;{{::=&quot; &quot;}}&quot; (Map.singleton kCustom vCustom) pass1</span>
+<span class="lineno">  357 </span><span class="spaces">            </span><span class="istickedoff">!msg1 = forceString (&quot;pass1 = &quot; ++ show pass1)</span>
+<span class="lineno">  358 </span><span class="spaces">            </span><span class="istickedoff">!msg2 = forceString (&quot;pass2 = &quot; ++ show pass2)</span>
+<span class="lineno">  359 </span><span class="spaces">        </span><span class="istickedoff">in  counterexample <span class="nottickedoff">msg1</span> $</span>
+<span class="lineno">  360 </span><span class="spaces">            </span><span class="istickedoff">counterexample <span class="nottickedoff">msg2</span> $</span>
+<span class="lineno">  361 </span><span class="spaces">            </span><span class="istickedoff">pass2 == vDefault ++ &quot; and &quot; ++ vCustom</span></span>
+
+</pre>
+</body>
+</html>

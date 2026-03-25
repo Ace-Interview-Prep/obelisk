@@ -1,0 +1,178 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="decl"><span class="nottickedoff">never executed</span> <span class="tickonlytrue">always true</span> <span class="tickonlyfalse">always false</span></span>
+</pre>
+<pre>
+<span class="lineno">    1 </span>{-# LANGUAGE CPP #-}
+<span class="lineno">    2 </span>{-# LANGUAGE FlexibleContexts #-}
+<span class="lineno">    3 </span>{-# LANGUAGE TupleSections #-}
+<span class="lineno">    4 </span>
+<span class="lineno">    5 </span>-- |
+<span class="lineno">    6 </span>-- Module      : Scrappy.Template
+<span class="lineno">    7 </span>-- Description : Template substitution engine with parameterized delimiters
+<span class="lineno">    8 </span>-- Copyright   : (c) Galen Sprout, 2024
+<span class="lineno">    9 </span>-- License     : BSD-3-Clause
+<span class="lineno">   10 </span>-- Maintainer  : galen.sprout@gmail.com
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>-- Template substitution engine built on Parsec. Supports parameterized
+<span class="lineno">   13 </span>-- open\/close delimiters for embedding named placeholders in strings and files.
+<span class="lineno">   14 </span>-- The default syntax uses @{{&gt;&gt;=name}}@ but custom delimiters (e.g. @{{::=name}}@,
+<span class="lineno">   15 </span>-- @\{%name%\}@) are supported via the @*With@ variants.
+<span class="lineno">   16 </span>module Scrappy.Template
+<span class="lineno">   17 </span>  ( -- * Parser combinators
+<span class="lineno">   18 </span>    -- | Low-level Parsec combinators used internally but exported for reuse.
+<span class="lineno">   19 </span>    manyTill_
+<span class="lineno">   20 </span>  , between'
+<span class="lineno">   21 </span>  , between1
+<span class="lineno">   22 </span>    -- * Template name parser
+<span class="lineno">   23 </span>  , validName
+<span class="lineno">   24 </span>  , Name
+<span class="lineno">   25 </span>    -- * Parameterized template functions (custom delimiters)
+<span class="lineno">   26 </span>  , templateParserWith
+<span class="lineno">   27 </span>  , unTemplateWith
+<span class="lineno">   28 </span>  , unTemplateFileWith
+<span class="lineno">   29 </span>    -- * Default template functions ({{&gt;&gt;=name}} syntax)
+<span class="lineno">   30 </span>  , templateParser
+<span class="lineno">   31 </span>  , unTemplate
+<span class="lineno">   32 </span>  , unTemplateFile
+<span class="lineno">   33 </span>  , templateSyntaxExample
+<span class="lineno">   34 </span>  ) where
+<span class="lineno">   35 </span>
+<span class="lineno">   36 </span>import Scrappy.Find (streamEdit)
+<span class="lineno">   37 </span>
+<span class="lineno">   38 </span>import Text.Parsec
+<span class="lineno">   39 </span>  ( ParsecT, Stream, (&lt;|&gt;), string, char, letter, alphaNum, many )
+<span class="lineno">   40 </span>#if !MIN_VERSION_base(4,18,0)
+<span class="lineno">   41 </span>import Control.Applicative (liftA2)
+<span class="lineno">   42 </span>#endif
+<span class="lineno">   43 </span>import qualified Data.Map as Map
+<span class="lineno">   44 </span>
+<span class="lineno">   45 </span>
+<span class="lineno">   46 </span>-- TODO: move manyTill_ , between', between1 into Scrappy.ParsecExtra
+<span class="lineno">   47 </span>
+<span class="lineno">   48 </span>-- | Like 'Text.Parsec.manyTill' but returns both the accumulated results and
+<span class="lineno">   49 </span>-- the end value as a pair.
+<span class="lineno">   50 </span>--
+<span class="lineno">   51 </span>-- @since 0.1.0.0
+<span class="lineno">   52 </span>manyTill_ :: ParsecT s u m a -&gt; ParsecT s u m end -&gt; ParsecT s u m ([a], end)
+<span class="lineno">   53 </span><span class="decl"><span class="istickedoff">manyTill_ p end = go</span>
+<span class="lineno">   54 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">   55 </span><span class="spaces">    </span><span class="istickedoff">go = (([],) &lt;$&gt; end) &lt;|&gt; liftA2 (\x (xs, y) -&gt; (x : xs, y)) p go</span></span>
+<span class="lineno">   56 </span>
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>-- | Parse zero or more occurrences of @inside@ between @open@ and @close@,
+<span class="lineno">   59 </span>-- returning the collected inner results.
+<span class="lineno">   60 </span>--
+<span class="lineno">   61 </span>-- @since 0.1.0.0
+<span class="lineno">   62 </span>between' :: Stream s m Char =&gt; ParsecT s u m open -&gt; ParsecT s u m end -&gt; ParsecT s u m a -&gt; ParsecT s u m [a]
+<span class="lineno">   63 </span><span class="decl"><span class="istickedoff">between' open close inside = do</span>
+<span class="lineno">   64 </span><span class="spaces">  </span><span class="istickedoff">_ &lt;- open</span>
+<span class="lineno">   65 </span><span class="spaces">  </span><span class="istickedoff">(x, _) &lt;- manyTill_ inside close</span>
+<span class="lineno">   66 </span><span class="spaces">  </span><span class="istickedoff">pure x</span></span>
+<span class="lineno">   67 </span>
+<span class="lineno">   68 </span>
+<span class="lineno">   69 </span>-- | Parse exactly one occurrence of @match@ between @open@ and @end@.
+<span class="lineno">   70 </span>--
+<span class="lineno">   71 </span>-- @since 0.1.0.0
+<span class="lineno">   72 </span>between1 :: Stream s m Char =&gt; ParsecT s u m open -&gt; ParsecT s u m end -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+<span class="lineno">   73 </span><span class="decl"><span class="istickedoff">between1 open end match = open *&gt; match &lt;* end</span></span>
+<span class="lineno">   74 </span>
+<span class="lineno">   75 </span>
+<span class="lineno">   76 </span>-- | Parser for valid template names: starts with letter, underscore, or hyphen;
+<span class="lineno">   77 </span>-- followed by alphanumeric, underscore, or hyphen.
+<span class="lineno">   78 </span>--
+<span class="lineno">   79 </span>-- @since 0.1.0.0
+<span class="lineno">   80 </span>validName :: Stream s m Char =&gt; ParsecT s u m Name
+<span class="lineno">   81 </span><span class="decl"><span class="istickedoff">validName = do</span>
+<span class="lineno">   82 </span><span class="spaces">  </span><span class="istickedoff">first_ &lt;- letter &lt;|&gt; char '_' &lt;|&gt; char '-'</span>
+<span class="lineno">   83 </span><span class="spaces">  </span><span class="istickedoff">rest &lt;- many $ alphaNum &lt;|&gt; char '_' &lt;|&gt; char '-'</span>
+<span class="lineno">   84 </span><span class="spaces">  </span><span class="istickedoff">pure $ first_ : rest</span></span>
+<span class="lineno">   85 </span>
+<span class="lineno">   86 </span>
+<span class="lineno">   87 </span>-- | A template placeholder name (e.g. @\&quot;name\&quot;@ in @{{&gt;&gt;=name}}@).
+<span class="lineno">   88 </span>--
+<span class="lineno">   89 </span>-- @since 0.1.0.0
+<span class="lineno">   90 </span>type Name = String
+<span class="lineno">   91 </span>
+<span class="lineno">   92 </span>-- | Template parser parameterized by open\/close delimiters.
+<span class="lineno">   93 </span>--
+<span class="lineno">   94 </span>-- @templateParserWith \&quot;{{&gt;&gt;=\&quot; \&quot;}}\&quot;@ is equivalent to 'templateParser'.
+<span class="lineno">   95 </span>--
+<span class="lineno">   96 </span>-- @since 0.1.0.0
+<span class="lineno">   97 </span>templateParserWith :: Stream s m Char =&gt; String -&gt; String -&gt; ParsecT s u m Name
+<span class="lineno">   98 </span><span class="decl"><span class="istickedoff">templateParserWith open close =</span>
+<span class="lineno">   99 </span><span class="spaces">  </span><span class="istickedoff">between1 (string open) (string close) validName</span></span>
+<span class="lineno">  100 </span>
+<span class="lineno">  101 </span>-- | Default template parser using @{{&gt;&gt;=name}}@ syntax.
+<span class="lineno">  102 </span>--
+<span class="lineno">  103 </span>-- @since 0.1.0.0
+<span class="lineno">  104 </span>templateParser :: Stream s m Char =&gt; ParsecT s u m Name
+<span class="lineno">  105 </span><span class="decl"><span class="istickedoff">templateParser = templateParserWith &quot;{{&gt;&gt;=&quot; &quot;}}&quot;</span></span>
+<span class="lineno">  106 </span>
+<span class="lineno">  107 </span>-- | Example string showing the default template syntax: @\&quot;{{&gt;&gt;=name}}\&quot;@.
+<span class="lineno">  108 </span>--
+<span class="lineno">  109 </span>-- @since 0.1.0.0
+<span class="lineno">  110 </span>templateSyntaxExample :: String
+<span class="lineno">  111 </span><span class="decl"><span class="istickedoff">templateSyntaxExample = &quot;{{&gt;&gt;=name}}&quot;</span></span>
+<span class="lineno">  112 </span>
+<span class="lineno">  113 </span>
+<span class="lineno">  114 </span>-- TODO: use template haskell and staticWhich to make this compile time so that it fails
+<span class="lineno">  115 </span>-- if an undefined name does not exist in the Map and can also give warnings when some are not used
+<span class="lineno">  116 </span>
+<span class="lineno">  117 </span>-- | Replace all template occurrences in the input using the map,
+<span class="lineno">  118 </span>-- parameterized by open\/close delimiters.
+<span class="lineno">  119 </span>--
+<span class="lineno">  120 </span>-- Calls 'error' if a placeholder references a name not present in the map.
+<span class="lineno">  121 </span>--
+<span class="lineno">  122 </span>-- @since 0.1.0.0
+<span class="lineno">  123 </span>unTemplateWith :: String -&gt; String -&gt; Map.Map String String -&gt; String -&gt; String
+<span class="lineno">  124 </span><span class="decl"><span class="istickedoff">unTemplateWith open close tmplMap input = streamEdit (templateParserWith open close) mapLookup input</span>
+<span class="lineno">  125 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  126 </span><span class="spaces">    </span><span class="istickedoff">mapLookup :: Name -&gt; String</span>
+<span class="lineno">  127 </span><span class="spaces">    </span><span class="istickedoff">mapLookup n = case Map.lookup n tmplMap of</span>
+<span class="lineno">  128 </span><span class="spaces">      </span><span class="istickedoff">Just v -&gt; v</span>
+<span class="lineno">  129 </span><span class="spaces">      </span><span class="istickedoff">Nothing -&gt; error $! &quot;name &quot; &lt;&gt; open &lt;&gt; n &lt;&gt; close &lt;&gt; &quot; not defined&quot;</span></span>
+<span class="lineno">  130 </span>
+<span class="lineno">  131 </span>-- | Replace all @{{&gt;&gt;=name}}@ occurrences in the input using the map.
+<span class="lineno">  132 </span>--
+<span class="lineno">  133 </span>-- Calls 'error' if a placeholder references a name not present in the map.
+<span class="lineno">  134 </span>--
+<span class="lineno">  135 </span>-- @since 0.1.0.0
+<span class="lineno">  136 </span>unTemplate :: Map.Map String String -&gt; String -&gt; String
+<span class="lineno">  137 </span><span class="decl"><span class="istickedoff">unTemplate = unTemplateWith &quot;{{&gt;&gt;=&quot; &quot;}}&quot;</span></span>
+<span class="lineno">  138 </span>
+<span class="lineno">  139 </span>-- | Like 'unTemplateWith' but reads from a file. Parameterized by delimiters.
+<span class="lineno">  140 </span>--
+<span class="lineno">  141 </span>-- TODO: make this catchable as an IOError
+<span class="lineno">  142 </span>--
+<span class="lineno">  143 </span>-- @since 0.1.0.0
+<span class="lineno">  144 </span>unTemplateFileWith :: String -&gt; String -&gt; Map.Map String String -&gt; FilePath -&gt; IO String
+<span class="lineno">  145 </span><span class="decl"><span class="istickedoff">unTemplateFileWith open close tmplMap fp = do</span>
+<span class="lineno">  146 </span><span class="spaces">  </span><span class="istickedoff">s &lt;- readFile fp</span>
+<span class="lineno">  147 </span><span class="spaces">  </span><span class="istickedoff">pure $ unTemplateWith open close tmplMap s</span></span>
+<span class="lineno">  148 </span>
+<span class="lineno">  149 </span>-- | Like 'unTemplate' but reads from a file.
+<span class="lineno">  150 </span>--
+<span class="lineno">  151 </span>-- TODO: make this catchable as an IOError
+<span class="lineno">  152 </span>--
+<span class="lineno">  153 </span>-- @since 0.1.0.0
+<span class="lineno">  154 </span>unTemplateFile :: Map.Map String String -&gt; FilePath -&gt; IO String
+<span class="lineno">  155 </span><span class="decl"><span class="istickedoff">unTemplateFile = unTemplateFileWith &quot;{{&gt;&gt;=&quot; &quot;}}&quot;</span></span>
+
+</pre>
+</body>
+</html>
