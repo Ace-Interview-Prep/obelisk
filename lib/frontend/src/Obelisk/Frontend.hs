@@ -52,6 +52,7 @@ import Data.Foldable (for_)
 import Data.Map (Map)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Types as DOM
 import qualified GHCJS.DOM.History as DOM
@@ -198,7 +199,7 @@ runFrontendWithConfigsAndCurrentRoute
 runFrontendWithConfigsAndCurrentRoute mode configs validFullEncoder frontend = do
   let ve = validFullEncoder . hoistParse errorLeft (reviewEncoder (rPrism $ _FullRoute_Frontend . _ObeliskRoute_App))
       errorLeft = \case
-        Left _ -> error "runFrontend: Unexpected non-app ObeliskRoute reached the frontend. This shouldn't happen."
+        Left e -> error $ "runFrontend: Failed to decode frontend route: " <> T.unpack e
         Right x -> Identity x
       w :: ( RawDocument (DomBuilderSpace (HydrationDomBuilderT s DomTimeline m)) ~ DOM.Document
            , Ref (Performable m) ~ Ref IO

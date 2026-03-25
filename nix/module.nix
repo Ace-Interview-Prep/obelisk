@@ -7,7 +7,24 @@ let obeliskLib = import ./lib.nix { inherit system; };
 
     assets = import ./assets.nix { nixpkgs = pkgs; };
 
-    rawStatic = config.obelisk.static.path;
+    # Merge singular path (at root) with named paths (as subdirs).
+    allStaticPaths =
+      (lib.optionalAttrs (config.obelisk.static.path != null) {
+        "" = config.obelisk.static.path;
+      })
+      // config.obelisk.static.paths;
+
+    rawStatic = if allStaticPaths == {} then null
+      else if allStaticPaths ? "" && builtins.length (builtins.attrNames allStaticPaths) == 1
+      then allStaticPaths.""  # Single root path — pass through directly (backward compat)
+      else pkgs.runCommand "merged-static" {} (
+        "mkdir -p $out\n"
+        + lib.concatStringsSep "\n" (lib.mapAttrsToList (name: src:
+            if name == ""
+            then "cp -rL ${src}/. $out/"
+            else "ln -s ${src} $out/${name}"
+          ) allStaticPaths)
+      );
 
     # Hash and copy static files into a flat directory with cache-busting names.
     hashedStatic = if rawStatic != null
@@ -44,6 +61,16 @@ in {
         type = lib.types.nullOr (lib.types.either lib.types.path lib.types.package);
         default = null;
         description = "Static assets path or derivation.";
+      };
+
+      paths = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.either lib.types.path lib.types.package);
+        default = {};
+        description = ''
+          Named static asset directories. Each value is a path or derivation.
+          Keys become subdirectory prefixes in the merged output.
+          Use alongside obelisk.static.path (which merges at root level).
+        '';
       };
 
       compress = lib.mkOption {

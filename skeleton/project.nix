@@ -11,6 +11,14 @@
   # For projects without a build step, use:
   # obelisk.static.path = ./static/src;
 
+  # Multiple static directories (each with its own build pipeline):
+  # obelisk.static.paths = {
+  #   css     = import ./css { inherit pkgs; };       # Tailwind/PostCSS build
+  #   landing = import ./landing { inherit pkgs; };    # Landing page assets
+  #   media   = ./media/src;                           # Raw path, no build step
+  # };
+  # Access in Haskell: static @"css/styles.css", static @"landing/index.html"
+
   shell = {
     crossPlatforms = ps: with ps; [
       wasi32
