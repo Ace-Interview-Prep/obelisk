@@ -128,6 +128,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Common
+                      Common.Constants
                       Common.Route
 
     -- Modules included in this library but not exported.
@@ -139,8 +140,14 @@ library
     -- Other library packages from which modules are imported.
     build-depends:    base
                       --
+                    , bytestring
+                    , mtl
                     , obelisk-route
+                    , signed-data
                     , text
+    if !(arch(javascript) || arch(wasm32))
+      build-depends:  beam-core
+                    , rhyolite-account-types
 
     -- Directories containing source files.
     hs-source-dirs:   src

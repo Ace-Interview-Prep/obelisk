@@ -157,12 +157,19 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:    common
+                    , landing-page
                       --
                     , base
                       --
                     , directory
                     , file-embed
+                    , gargoyle-postgresql-connect
                     , obelisk-backend
+                    , obelisk-route
+                    , postgresql-simple
+                    , resource-pool
+                    , rhyolite-backend
+                    , snap-core
 
     -- Directories containing source files.
     hs-source-dirs:   src

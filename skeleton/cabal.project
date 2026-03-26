@@ -8,6 +8,7 @@ optional-packages:
 if !(arch(javascript) || arch(wasm32))
   packages:
     backend
+    landing-page
 
   optional-packages:
     frontend/js

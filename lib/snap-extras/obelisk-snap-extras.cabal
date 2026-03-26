@@ -9,7 +9,8 @@ library
   hs-source-dirs: src
 
   build-depends:
-      attoparsec
+      aeson
+    , attoparsec
     , base
     , bytestring
     , snap-core

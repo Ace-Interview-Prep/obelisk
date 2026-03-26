@@ -6,9 +6,11 @@ module Obelisk.Snap.Extras
   , serveFileIfExists
   , serveFileIfExistsAs
   , modernMimeTypes
+  , writeJSON
   ) where
 
 import Control.Monad.IO.Class
+import Data.Aeson (ToJSON, encode)
 import Data.ByteString (ByteString)
 import Data.String
 import Snap.Core
@@ -61,3 +63,9 @@ ensureSecure port h = do
     uri <- getsRequest rqURI
     host <- getsRequest rqHostName --TODO: It might be better to use the canonical base of the server
     redirect $ "https://" <> host <> (if port == 443 then "" else ":" <> fromString (show port)) <> uri
+
+-- | Write a JSON value as the response body with the appropriate content type.
+writeJSON :: (MonadSnap m, ToJSON a) => a -> m ()
+writeJSON a = do
+  modifyResponse $ setHeader "Content-Type" "application/json"
+  writeLBS $ encode a

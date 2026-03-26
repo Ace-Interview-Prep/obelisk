@@ -1,0 +1,108 @@
+cabal-version:      3.4
+name:               landing-page
+version:            0.1.0.0
+license:            NONE
+build-type:         Simple
+
+flag strict
+  description: Build with options, such as -Werror, which are inconvenient for development but good for CI
+  default: False
+  manual: True
+
+common common
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveTraversable
+    DerivingStrategies
+    EmptyCase
+    EmptyDataDecls
+    ExtendedDefaultRules
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    ImportQualifiedPost
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    NumericUnderscores
+    OverloadedStrings
+    PartialTypeSignatures
+    PatternSynonyms
+    PolyKinds
+    QuantifiedConstraints
+    QuasiQuotes
+    RankNTypes
+    RecursiveDo
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+  if flag(strict)
+    ghc-options:
+      -Werror
+      -Wunused-packages
+  ghc-options: -Wall -O2 -fexpose-all-unfoldings -fno-show-valid-hole-fits
+               -- unnecessary checks
+               -Wno-type-defaults
+               -Wno-partial-type-signatures
+               -- unsafe code
+               -Wincomplete-record-updates -Werror=incomplete-record-updates
+               -Wincomplete-patterns -Werror=incomplete-patterns
+               -Wincomplete-uni-patterns -Werror=incomplete-uni-patterns
+               -Wpartial-fields -Werror=partial-fields
+               -Wmissing-fields -Werror=missing-fields
+               -- unneeded code
+               -Widentities
+               -Wredundant-constraints
+               -Wunused-packages
+  if impl(ghc >= 8.8)
+    ghc-options:
+               -Wmissing-deriving-strategies
+               -Werror=missing-deriving-strategies
+  if !(arch(wasm32))
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+
+library
+    import:           common
+
+    exposed-modules:  Landing
+                      Landing.Pages
+
+    build-depends:    common
+                      --
+                    , base
+                      --
+                    , bytestring
+                    , obelisk-route
+                    , snap-core
+                    , text
+                      --
+                      -- Lamarckian static site compilation (uncomment to use TH pages):
+                      -- , lamarckian
+                      -- , lamarckian-core
+                      -- , reflex-dom-core
+                      -- , template-haskell
+
+    hs-source-dirs:   src
+
+    default-language: Haskell2010
+
+    if (arch(javascript) || arch(wasm32))
+      buildable: False

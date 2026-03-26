@@ -2,6 +2,15 @@
 
 let src = ../.;
 
+    # Copy a standalone dep repo to the store, stripping its .git directory.
+    # Needed because the nix-haskell source-repository-package builder does
+    # `git init && git commit` which fails if .git already exists.
+    depSrc = name: builtins.path {
+      inherit name;
+      path = ../deps + "/${name}";
+      filter = p: _: baseNameOf p != ".git";
+    };
+
     nix-haskell = import ../deps/nix-haskell { inherit system; };
 
     # Standalone project built only to produce the manifest generator executable.
@@ -67,10 +76,13 @@ in rec {
     obelisk-setup = src + "/lib/setup";
     tabulation = src + "/lib/tabulation";
 
-    # jenga-auth packages — uncomment when their deps (rhyolite, beam, signed-data, etc.) are ported to GHC 9.14:
-    # jenga-auth-backend = src + "/lib/jenga-auth-backend";
-    # jenga-auth-common = src + "/lib/jenga-auth-common";
+    jenga-auth-common = src + "/lib/jenga-auth-common";
+    jenga-auth-backend = src + "/lib/jenga-auth-backend";
+    # jenga-auth-frontend — needs ClasshSS, reflex-classhss, staticAssets, templates
     # jenga-auth-frontend = src + "/lib/jenga-auth-frontend";
+
+    obelisk-oauth-common = src + "/deps/obelisk-oauth/common";
+    obelisk-oauth-backend = src + "/deps/obelisk-oauth/backend";
     lamarckian = src + "/lib/lamarckian";
     lamarckian-core = src + "/lib/lamarckian-core";
     scrappy-core = src + "/lib/scrappy-core";
@@ -81,6 +93,44 @@ in rec {
     chrome-test-utils = src + "/deps/reflex-dom/chrome-test-utils";
 
     haskell-src-exts = haskell-src-exts-patched;
+
+    # --- rhyolite ecosystem ---
+    rhyolite-common = src + "/deps/rhyolite/common";
+    rhyolite-backend = src + "/deps/rhyolite/backend";
+    rhyolite-frontend = src + "/deps/rhyolite/frontend";
+    rhyolite-widgets = src + "/deps/rhyolite/widgets";
+    semimap = src + "/deps/rhyolite/semimap";
+    rhyolite-beam-db = src + "/deps/rhyolite/beam/db";
+    rhyolite-beam-orphans = src + "/deps/rhyolite/beam/orphans";
+    rhyolite-beam-task-worker-types = src + "/deps/rhyolite/beam/task/types";
+    rhyolite-beam-task-worker-backend = src + "/deps/rhyolite/beam/task/backend";
+    rhyolite-notify-listen = src + "/deps/rhyolite/notify-listen/notify-listen";
+    rhyolite-notify-listen-beam = src + "/deps/rhyolite/notify-listen/notify-listen-beam";
+    rhyolite-email = src + "/deps/rhyolite/email";
+    mime-mail-orphans = src + "/deps/rhyolite/email/mime-mail-orphans";
+    rhyolite-account-types = src + "/deps/rhyolite/account/types";
+    rhyolite-account-backend = src + "/deps/rhyolite/account/backend";
+    signed-data = src + "/deps/rhyolite/signed-data/signed-data";
+    signed-data-clientsession = src + "/deps/rhyolite/signed-data/signed-data-clientsession";
+    psql-simple-class = src + "/deps/rhyolite/psql-extras/psql-simple-class";
+    psql-simple-beam = src + "/deps/rhyolite/psql-extras/psql-simple-beam";
+    psql-serializable = src + "/deps/rhyolite/psql-extras/psql-serializable";
+
+    # --- rhyolite dep thunks (cloned into deps/) ---
+    # Standalone repos use depSrc to strip .git; subdirectory refs use src +.
+    vessel = depSrc "vessel";
+    beam-core = src + "/deps/beam/beam-core";
+    beam-postgres = src + "/deps/beam/beam-postgres";
+    beam-migrate = src + "/deps/beam/beam-migrate";
+    beam-automigrate = depSrc "beam-automigrate";
+    gargoyle = src + "/deps/gargoyle/gargoyle";
+    gargoyle-postgresql = src + "/deps/gargoyle/gargoyle-postgresql";
+    gargoyle-postgresql-nix = src + "/deps/gargoyle/gargoyle-postgresql-nix";
+    gargoyle-postgresql-connect = src + "/deps/gargoyle/gargoyle-postgresql-connect";
+    monoid-map = depSrc "monoid-map";
+    bytestring-aeson-orphans = depSrc "bytestring-aeson-orphans";
+    postgresql-simple-interpolate = depSrc "postgresql-simple-interpolate";
+    postgresql-lo-stream = depSrc "postgresql-lo-stream";
   };
 
   extraCabalProject = [
