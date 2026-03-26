@@ -1,64 +1,52 @@
 #!/usr/bin/env bash
-# ob-run: Development server that rebuilds and restarts the backend on source changes.
-# Disables optimizations (-O0 and -fno-* flags) for faster rebuilds.
-# Triggers on .hs, .cabal, .project file changes or when the user presses Enter.
+# ob-run: Development server with sub-second reloads via ghcid.
+# Does an initial full build (including WASM), then uses ghcid to keep GHC
+# loaded in memory for instant incremental recompilation on source changes.
 set -euo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "Usage: ob-run [-- CABAL_ARGS...]"
   echo ""
-  echo "  Runs 'cabal run backend' with optimizations disabled and restarts it"
-  echo "  whenever .hs, .cabal, or .project files change in backend/, common/,"
-  echo "  or frontend/. Disables -O2, -fspecialise, -fexpose-all-unfoldings,"
-  echo "  -fspecialise-aggressively, -flate-specialise, and -fcross-module-specialise"
-  echo "  for faster rebuilds."
-  echo "  Extra arguments after -- are passed through to cabal run."
-  echo "  Press Enter to force a restart."
+  echo "  Builds the backend (including WASM frontend) once, then starts ghcid"
+  echo "  for sub-second reloads. GHC stays loaded in memory — only changed"
+  echo "  modules are recompiled on save."
+  echo "  Disables -O2 and specialisation flags for faster rebuilds."
+  echo "  Extra arguments after -- are passed through to cabal repl."
+  echo "  To rebuild WASM after frontend changes, Ctrl+C and re-run ob-run."
   exit 0
 fi
 
-# Kill all child processes on exit.
-cleanup() {
-  kill "$PID" 2>/dev/null || true
-  kill "$INOTIFY_PID" 2>/dev/null || true
-  kill "$READ_PID" 2>/dev/null || true
-}
-trap cleanup EXIT
+DEV_GHC_OPTIONS=(
+  --ghc-options=-O0
+  --ghc-options=-fno-specialise
+  --ghc-options=-fno-expose-all-unfoldings
+  --ghc-options=-fno-specialise-aggressively
+  --ghc-options=-fno-late-specialise
+  --ghc-options=-fno-cross-module-specialise
+)
 
-restart() {
-  kill "$PID" 2>/dev/null || true
-  wait "$PID" 2>/dev/null || true
-  echo "Restarting..."
-}
+# Step 1: Full build to ensure WASM assets and symlinks exist.
+echo "==> Building backend (including WASM frontend)..."
+OBELISK_CROSS_CABAL_ARGS="-O0 ${DEV_GHC_OPTIONS[*]}" \
+  cabal build backend -O0 "${DEV_GHC_OPTIONS[@]}" "$@"
 
-while true; do
-  # Run the backend in the background with optimizations disabled.
-  DEV_GHC_OPTIONS=(
-    --ghc-options=-O0
-    --ghc-options=-fno-specialise
-    --ghc-options=-fno-expose-all-unfoldings
-    --ghc-options=-fno-specialise-aggressively
-    --ghc-options=-fno-late-specialise
-    --ghc-options=-fno-cross-module-specialise
-  )
-  OBELISK_CROSS_CABAL_ARGS="-O0 ${DEV_GHC_OPTIONS[*]}" \
-    cabal run backend -O0 "${DEV_GHC_OPTIONS[@]}" "$@" &
-  PID=$!
-
-  # Watch for source file changes.
-  inotifywait -r -e modify,create,delete \
-    --include '\.(hs|cabal|project)$' \
-    backend common frontend 2>/dev/null &
-  INOTIFY_PID=$!
-
-  # Also allow manual restart by pressing Enter.
-  read -r < /dev/tty 2>/dev/null &
-  READ_PID=$!
-
-  # Restart on whichever triggers first.
-  wait -n "$INOTIFY_PID" "$READ_PID" 2>/dev/null || true
-  kill "$INOTIFY_PID" 2>/dev/null || true
-  kill "$READ_PID" 2>/dev/null || true
-
-  restart
-done
+# Step 2: ghcid for sub-second reloads.
+# Multi-repl loads all library sources into GHCi so ghcid watches them all.
+# --poll: ghcid 0.8.9 can't parse GHC 9.14 multi-repl's per-unit :show paths
+#   output, producing garbled watch paths and infinite loops. --poll bypasses
+#   inotify entirely, polling for changes every second instead.
+# --run: chains :add (to bring DevMain into the session after multi-repl
+#   modules are loaded) and DevMain.devMain (to start the server).
+# -f -cross: skips frontend-wasm Setup.hs hooks in the REPL.
+echo "==> Starting ghcid (sub-second reloads on save)..."
+echo "    Ctrl+C to stop. Re-run ob-run to rebuild WASM after frontend changes."
+exec ghcid \
+  --command="cabal repl --enable-multi-repl lib:backend lib:common lib:frontend -O0 -f -cross ${DEV_GHC_OPTIONS[*]} $*" \
+  --warnings \
+  --poll \
+  --run=':cmd return ":add *backend/src/DevMain.hs\nDevMain.devMain"' \
+  --restart=backend/backend.cabal \
+  --restart=common/common.cabal \
+  --restart=frontend/frontend.cabal \
+  --restart=landing-page/landing-page.cabal \
+  --restart=cabal.project

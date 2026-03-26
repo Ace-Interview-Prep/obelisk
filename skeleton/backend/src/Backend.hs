@@ -7,7 +7,6 @@ import Common
 import Landing
 
 
-
 backend :: Backend BackendRoute FrontendRoute
 backend = Backend
   { _backend_run = \serve -> serve $ \case
@@ -15,7 +14,7 @@ backend = Backend
       r@(BackendRoute_About :/ ()) -> serveLandingRoute r
       r@(BackendRoute_Blog :/ ()) -> serveLandingRoute r
       BackendRoute_RobotsTxt :/ () -> serveRobotsTxt
-       
+      
       BackendRoute_Listen :/ () -> pure () -- TODO: rhyolite listen handler
       BackendRoute_Api :/ apiRoute -> case apiRoute of
         ApiRoute_Login :/ _msid -> pure () -- TODO: jenga-auth login handler

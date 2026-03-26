@@ -289,9 +289,9 @@ in {
     ];
 
     shell.nativeBuildInputs = [
+      pkgs.haskellPackages.ghcid
       (pkgs.writeShellApplication {
         name = "ob-run";
-        runtimeInputs = [ pkgs.inotify-tools ];
         text = builtins.readFile ../scripts/ob-run;
       })
       (pkgs.writeShellApplication {
