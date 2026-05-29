@@ -57,6 +57,7 @@ import Distribution.Fields.ParseResult (runParseResult)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescription, runParseResult)
 #endif
 import Distribution.Pretty (prettyShow)
+import Distribution.Version (mkVersion, withinRange)
 import Distribution.Simple.Compiler (PackageDB (GlobalPackageDB))
 import Distribution.Simple.Configure (configCompilerEx, getInstalledPackages)
 import Distribution.Simple.PackageIndex (InstalledPackageIndex, lookupDependency)
@@ -383,10 +384,21 @@ parseCabalPackage' pkg = runExceptT $ do
       "darwin" -> Just Dist.OSX
       _ -> trace "Unrecgonized System.Info.os" Nothing
     archConfVar = Just Dist.X86_64 -- TODO: Actually infer this
+    -- The target GHC version used to evaluate `if impl(ghc >= X)`
+    -- conditionals in cabal files. Hardcoded for this ace-ws branch
+    -- to 8.10.7 — that's the version obelisk's nixpkgs ships. The
+    -- proper fix would be to discover this dynamically from the
+    -- nix project (e.g. shell out to `ghc --numeric-version` before
+    -- parsing), but that requires plumbing context that
+    -- parseCabalPackage' doesn't currently have. Without this,
+    -- conditionals like `if impl(ghc >= 9.4) build-depends: henforcer`
+    -- evaluate to True even on GHC 8.10 and ob errors trying to
+    -- resolve a dep that the actual cabal build correctly skips.
+    targetGhcVersion = mkVersion [8, 10, 7]
     evalConfVar v = Right $ case v of
       OS osVar -> Just osVar == osConfVar
       Arch archVar -> Just archVar == archConfVar
-      Impl GHC _ -> True -- TODO: Actually check version range
+      Impl GHC versionRange -> targetGhcVersion `withinRange` versionRange
       _ -> False
 #if MIN_VERSION_Cabal(3,2,1)
   case (view condLibrary) <$> result of
