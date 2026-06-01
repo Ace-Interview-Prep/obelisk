@@ -31,13 +31,14 @@ library
     , reflex
     , reflex-dom-core
     , reflex-effectful
-    , servant
     , text
 
-  -- Backend-only deps (not on WASM/JS)
+  -- Servant + backend deps (not on WASM/JS — servant needs generics-sop
+  -- which uses TH that fails on GHC WASM backend)
   if !(arch(wasm32) || arch(javascript))
     build-depends:
       , http-types
+      , servant
       , servant-server
       , snap-core
       , snap-server

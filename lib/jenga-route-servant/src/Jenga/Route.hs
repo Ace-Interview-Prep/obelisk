@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -72,12 +73,15 @@ module Jenga.Route
   , parseUrlSegments
   , urlToSegments
 
-    -- * Re-exports from Servant
+    -- * Re-exports
+  , Proxy(..)
+#if !defined(wasm32_HOST_ARCH) && !defined(javascript_HOST_ARCH)
+    -- * Re-exports from Servant (native only)
   , (:<|>)(..)
   , (:>)
   , Capture
   , QueryParam
-  , Proxy(..)
+#endif
   ) where
 
 import           Data.Dependent.Sum (DSum(..))
@@ -87,8 +91,9 @@ import qualified Data.Map as Map
 import           Data.Proxy (Proxy(..))
 import           Data.Text (Text)
 import qualified Data.Text as T
+#if !defined(wasm32_HOST_ARCH) && !defined(javascript_HOST_ARCH)
 import           Servant.API ((:<|>)(..), (:>), Capture, QueryParam)
-import           Servant.Links (safeLink, linkURI, URI(..), Link)
+#endif
 
 -- | Existential wrapper for a route GADT. Kept for compatibility
 -- with existing code that uses @R FrontendRoute@.

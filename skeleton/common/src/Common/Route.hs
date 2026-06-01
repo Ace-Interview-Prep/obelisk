@@ -16,6 +16,7 @@ import Data.Functor.Identity (Identity)
 import Database.Beam.Schema (PrimaryKey)
 import Rhyolite.Account (Account)
 import Data.Signed (Signed(..))
+import Servant.API
 
 type Id a = PrimaryKey a Identity
 type SignedAccountToken = Signed (Id Account)
@@ -25,11 +26,11 @@ data AccountId
 type SignedAccountToken = Signed AccountId
 #endif
 
-import Servant.API
 import Jenga.Route
 
--- ─── Servant API types ─────────────────────────────────────────
+-- ─── Servant API types (native only) ───────────────────────────
 
+#if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
 type FrontendPages =
        "app"                  :> Page
   :<|> "login"                :> Page
@@ -39,7 +40,7 @@ type FrontendPages =
   :<|> "request-new-password" :> Page
 
 type BackendApi =
-       Page                                            -- / (landing)
+       Page
   :<|> "about"      :> Page
   :<|> "blog"       :> Page
   :<|> "robots.txt" :> Get '[PlainText] Text
@@ -49,6 +50,10 @@ type BackendApi =
        :<|> "reset-password" :> ReqBody '[JSON] Text :> Post '[JSON] (Maybe Text)
        :<|> "email"          :> Post '[JSON] ()
        )
+#else
+-- On WASM/JS, we only need phantom types for the HasRoute instance
+data FrontendPages
+#endif
 
 -- ─── Frontend route sum type ───────────────────────────────────
 
@@ -61,7 +66,7 @@ data FrontendRoute
   | FrontendRoute_RequestNewPassword
   deriving (Eq, Show)
 
--- ─── HasRoute instance ─────────────────────────────────────────
+-- ─── HasRoute instance (works on all platforms) ────────────────
 
 instance HasRoute FrontendPages FrontendRoute where
   encodeRoute = \case

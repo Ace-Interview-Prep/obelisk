@@ -145,13 +145,13 @@ library
                     , containers
                     , email-validate
                     , jenga-route-servant
-                    , servant
                     , monoidal-containers
                     , mtl
                     , signed-data
                     , text
     if !(arch(javascript) || arch(wasm32))
-      build-depends:  aeson-gadt-th
+      build-depends:  servant
+                    , aeson-gadt-th
                     , beam-core
                     , constraints-extras
                     , dependent-sum-template
