@@ -9,12 +9,14 @@ library
   exposed-modules:
     Jenga.Route
     Jenga.Route.Frontend
+    Jenga.Route.Backend
 
   build-depends:
     , base              >=4.12 && <5
     , containers
     , dependent-sum
     , effectful-core
+    , http-types
     , jsaddle
     , reflex
     , reflex-dom-core
@@ -22,6 +24,9 @@ library
     , servant
     , servant-server
     , text
+    , wai
+    , wai-app-static
+    , warp
 
   hs-source-dirs:   src
   default-language:  Haskell2010
