@@ -224,14 +224,15 @@ runBrowserRouting _ fallback eff = do
     liftIO $ fireUrl (pathname <> search)
 
     -- Listen for popstate (browser back/forward)
+    cb <- JS.function $ \_ _ _ -> do
+      p <- JS.valToText =<< JS.jsg ("window" :: Text)
+        JS.! ("location" :: Text) JS.! ("pathname" :: Text)
+      s <- JS.valToText =<< JS.jsg ("window" :: Text)
+        JS.! ("location" :: Text) JS.! ("search" :: Text)
+      liftIO $ fireUrl (p <> s)
     _ <- JS.jsg ("window" :: Text) JS.# ("addEventListener" :: Text)
       $ [ JS.toJSVal ("popstate" :: Text)
-        , JS.fun $ \_ _ _ -> do
-            p <- JS.valToText =<< JS.jsg ("window" :: Text)
-              JS.! ("location" :: Text) JS.! ("pathname" :: Text)
-            s <- JS.valToText =<< JS.jsg ("window" :: Text)
-              JS.! ("location" :: Text) JS.! ("search" :: Text)
-            liftIO $ fireUrl (p <> s)
+        , JS.toJSVal cb
         ]
     pure ()
 
