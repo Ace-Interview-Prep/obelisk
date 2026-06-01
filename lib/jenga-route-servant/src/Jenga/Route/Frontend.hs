@@ -35,6 +35,7 @@ import qualified Data.Text as T
 import           Effectful (Effect, Dispatch(..), DispatchOf, (:>), Eff, IOE)
 import qualified Effectful
 import           Effectful.Dispatch.Dynamic (send, interpret_)
+import           Effectful.Dispatch.Static (unsafeEff_)
 import           Reflex.Effectful.Effect.JSM (JSM')
 
 import           Control.Lens ((.~), (&), (%~))
@@ -246,7 +247,7 @@ runBrowserRouting _ fallback eff = do
   routeDyn <- holdDyn fallback (parseOrFallback <$> urlEv)
 
   -- Store fireUrl in IORef so SetRoute interpreter can access it
-  fireRef <- Effectful.unsafeEff_ $ newIORef fireUrl
+  fireRef <- unsafeEff_ $ newIORef fireUrl
 
   -- Interpret all three effects using shared state
   let interpretRouteToUrl' :: Eff (RouteToUrl r : es') b -> Eff es' b
