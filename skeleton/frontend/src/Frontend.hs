@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 module Frontend where
 
@@ -80,14 +81,14 @@ counterWidget = do
     text " Value: "
     display val
 
-inputWidget :: WidgetEff' es t => Eff es ()
+inputWidget :: forall es t. WidgetEff' es t => Eff es ()
 inputWidget = do
   inp <- inputElement @(T es) def
   el "p" $ do
     text "You typed: "
     dynText (_inputElement_value inp)
 
-loginPage :: WidgetEff' es t => Eff es ()
+loginPage :: forall es t. WidgetEff' es t => Eff es ()
 loginPage = do
   el "h1" $ text "Login"
   el "div" $ do
@@ -102,7 +103,7 @@ loginPage = do
       text "Attempts: "
       display ct
 
-signupPage :: WidgetEff' es t => Eff es ()
+signupPage :: forall es t. WidgetEff' es t => Eff es ()
 signupPage = do
   el "h1" $ text "Sign Up"
   el "p" $ text "Create your account to get started."
@@ -114,7 +115,7 @@ signupPage = do
     if b then el "p" $ text "Account created!"
          else blank
 
-resetPage :: WidgetEff' es t => Eff es ()
+resetPage :: forall es t. WidgetEff' es t => Eff es ()
 resetPage = do
   el "h1" $ text "Reset Password"
   el "p" $ text "Enter your email to reset your password."
