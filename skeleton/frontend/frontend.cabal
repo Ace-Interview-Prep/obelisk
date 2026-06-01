@@ -146,8 +146,11 @@ library
                     , jenga-generated-static
                     , containers
                     , jsaddle-warp
+                    , data-default
                     , jenga-route-servant
+                    , reflex
                     , reflex-dom
+                    , reflex-dom-core
                     , reflex-effectful
 
     if !(arch(javascript) || arch(wasm32))
