@@ -143,7 +143,6 @@ library
                       --
                     , base
                       --
-                    , jenga-frontend
                     , jenga-generated-static
                     , jenga-route-servant
                     , reflex-dom
