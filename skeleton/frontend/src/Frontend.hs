@@ -51,14 +51,14 @@ frontendBody = do
     FrontendRoute_RequestNewPassword -> resetPage
 
 -- Navigation button that sets the route on click
-navBtn :: (DomEff' es t, SetRoute t FrontendRoute :> es) => FrontendRoute -> Text -> Eff es ()
+navBtn :: (WidgetEff' es t, SetRoute t FrontendRoute :> es) => FrontendRoute -> Text -> Eff es ()
 navBtn route label = do
   (e, _) <- el' "button" $ text label
   setRoute (route <$ domEvent Click e)
 
 -- ─── Pages ─────────────────────────────────────────────────────
 
-mainPage :: DomEff' es t => Eff es ()
+mainPage :: WidgetEff' es t => Eff es ()
 mainPage = do
   el "h1" $ text "Jenga + Effectful"
   el "p" $ text "GHC 9.14 | reflex-effectful | Servant routing"
@@ -69,7 +69,7 @@ mainPage = do
   el "h2" $ text "Input Echo"
   inputWidget
 
-counterWidget :: DomEff' es t => Eff es ()
+counterWidget :: WidgetEff' es t => Eff es ()
 counterWidget = do
   el "div" $ do
     (incEl, _) <- el' "button" $ text "+"
@@ -78,14 +78,14 @@ counterWidget = do
     text " Value: "
     display val
 
-inputWidget :: DomEff' es t => Eff es ()
+inputWidget :: WidgetEff' es t => Eff es ()
 inputWidget = do
   inp <- inputElement def
   el "p" $ do
     text "You typed: "
     dynText (_inputElement_value inp)
 
-loginPage :: DomEff' es t => Eff es ()
+loginPage :: WidgetEff' es t => Eff es ()
 loginPage = do
   el "h1" $ text "Login"
   el "div" $ do
@@ -100,7 +100,7 @@ loginPage = do
       text "Attempts: "
       display ct
 
-signupPage :: DomEff' es t => Eff es ()
+signupPage :: WidgetEff' es t => Eff es ()
 signupPage = do
   el "h1" $ text "Sign Up"
   el "p" $ text "Create your account to get started."
@@ -112,7 +112,7 @@ signupPage = do
     if b then el "p" $ text "Account created!"
          else blank
 
-resetPage :: DomEff' es t => Eff es ()
+resetPage :: WidgetEff' es t => Eff es ()
 resetPage = do
   el "h1" $ text "Reset Password"
   el "p" $ text "Enter your email to reset your password."
