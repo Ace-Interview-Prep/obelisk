@@ -42,13 +42,12 @@ import           Control.Monad (when)
 
 import           Reflex (Dynamic, Event, Reflex)
 import qualified Reflex as R
-import           Reflex.Dom.Core
 import           Data.Default (Default(def))
+import           Reflex.Dom.Core
                    ( GhcjsDomSpace, EventResult, ElementConfig, AttributeName(..)
                    , elementConfig_initialAttributes, elementConfig_eventSpec
                    , addEventSpecFlags, preventDefault
                    , domEvent, EventName(Click)
-                   
                    )
 
 import           Reflex.Effectful.Types (KnownTimeline)
