@@ -250,24 +250,18 @@ runBrowserRouting _ fallback eff = do
   -- Store fireUrl in IORef so SetRoute interpreter can access it
   fireRef <- unsafeEff_ $ newIORef fireUrl
 
-  -- Interpret all three effects using shared state
-  let interpretRouteToUrl' :: Eff (RouteToUrl r : es') b -> Eff es' b
-      interpretRouteToUrl' = interpret_ $ \case
-        AskRouteToUrl -> pure (encodeRoute @api)
+  -- Interpret RouteToUrl (pure — no effects needed)
+  let eff1 = interpret_ (\case AskRouteToUrl -> pure (encodeRoute @api)) eff
 
-      interpretSetRoute' :: Eff (SetRoute t r : es') b -> Eff es' b
-      interpretSetRoute' = interpret_ $ \case
+  -- Interpret SetRoute (needs PerformEvent from es)
+  let eff2 = interpret_ (\case
         SetRoute ev ->
-          -- pushState + fire shared trigger so Routed Dynamic updates
           performEvent_ $ R.ffor ev $ \route -> liftIO $ do
-            -- Fire the trigger directly — the URL will be parsed by Routed
             fire <- readIORef fireRef
             fire (encodeRoute @api route)
         ModifyRoute _ -> pure ()
+        ) eff1
 
-      interpretRouted' :: Eff (Routed t r : es') b -> Eff es' b
-      interpretRouted' = interpret_ $ \case
-        AskRoute -> pure routeDyn
-
-  interpretRouteToUrl' $ interpretSetRoute' $ interpretRouted' eff
+  -- Interpret Routed (pure — returns the Dynamic)
+  interpret_ (\case AskRoute -> pure routeDyn) eff2
 
