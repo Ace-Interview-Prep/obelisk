@@ -42,6 +42,7 @@ module Jenga.Frontend
   ) where
 
 import           Control.Monad (when, void)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Data.ByteString (ByteString)
 import           Data.Map (Map)
 import qualified Data.Map as Map
