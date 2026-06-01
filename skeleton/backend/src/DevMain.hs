@@ -2,7 +2,7 @@
 -- only used interpreted via multi-repl where Frontend is in scope.
 module DevMain (devMain) where
 
-import Obelisk.Backend
+import Jenga.Backend
 import System.FilePath ((</>))
 
 import Backend (backend)

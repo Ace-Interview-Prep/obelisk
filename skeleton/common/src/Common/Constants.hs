@@ -1,11 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Common.Constants where
 
-import Data.ByteString (ByteString)
+import Data.Text (Text)
 
-
-
-authCookieName :: ByteString
+authCookieName :: Text
 authCookieName = "cookie_ip"
 
-userTypeCookieName :: ByteString
+userTypeCookieName :: Text
 userTypeCookieName = "utype"

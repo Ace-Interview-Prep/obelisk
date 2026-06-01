@@ -15,16 +15,17 @@ if !(arch(javascript) || arch(wasm32))
     frontend/wasm
     static/generated/custom
 
--- Uncomment to develop obelisk libraries and reflex-dom locally.
+-- Uncomment to develop jenga libraries and reflex-dom locally.
 -- Not needed for normal development; nix provides these via source-repository-packages.
 --optional-packages:
---  deps/obelisk/lib/*
---  deps/obelisk/lib/*/*
+--  deps/jenga/lib/*
+--  deps/jenga/lib/*/*
 --
 --optional-packages:
---  deps/obelisk/deps/reflex-dom/*
+--  deps/jenga/deps/reflex-dom/*
 
-multi-repl: True
+-- multi-repl: True
+-- Disabled: GHC 9.14 multi-unit GHCi panics with "LinkInMemory".
 
 
 

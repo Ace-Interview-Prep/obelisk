@@ -1,29 +1,30 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Frontend where
 
-import Obelisk.Frontend
-import Obelisk.Generated.Static ()
-import Obelisk.Route
-import Obelisk.Route.Frontend
-import Reflex.Dom
+import Jenga.Generated.Static ()
+import Jenga.Route.Frontend
+import Reflex.Effectful
+import Reflex.Effectful.Run (WidgetEff')
 
 import Common.Route
 
-
-
-frontend :: Frontend (R FrontendRoute)
+frontend :: Frontend FrontendPages FrontendRoute
 frontend = Frontend
   { _frontend_head = frontendHead
   , _frontend_body = frontendBody
   }
- 
-frontendHead :: ObeliskWidget t route m => RoutedT t route m ()
-frontendHead = do
-  el "title" $ text "Obelisk App"
 
-frontendBody :: ObeliskWidget t (R FrontendRoute) m => RoutedT t (R FrontendRoute) m ()
-frontendBody = subRoute_ $ \case
+frontendHead :: (WidgetEff' es t, Routed t FrontendRoute :> es) => Eff es ()
+frontendHead = do
+  el "title" $ text "Jenga App"
+
+frontendBody :: (WidgetEff' es t, Routed t FrontendRoute :> es, SetRoute t FrontendRoute :> es, RouteToUrl FrontendRoute :> es) => Eff es ()
+frontendBody = switchRoute_ $ \case
   FrontendRoute_Main -> do
-    el "h1" $ text "Obelisk App"
+    el "h1" $ text "Jenga App"
     el "p" $ text "Edit frontend/src/Frontend.hs to get started."
   FrontendRoute_Login -> do
     el "h1" $ text "Login"
@@ -34,6 +35,9 @@ frontendBody = subRoute_ $ \case
   FrontendRoute_ResetPassword -> do
     el "h1" $ text "Reset Password"
     el "p" $ text "TODO: Reset password form"
+  FrontendRoute_ResetPasswordToken _tok -> do
+    el "h1" $ text "Reset Password"
+    el "p" $ text "TODO: Reset password with token"
   FrontendRoute_RequestNewPassword -> do
     el "h1" $ text "Request New Password"
     el "p" $ text "TODO: Request password reset form"

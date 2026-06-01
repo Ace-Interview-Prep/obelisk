@@ -1,4 +1,4 @@
-import Obelisk.Backend
+import Jenga.Backend
 import System.FilePath ((</>))
 
 import Backend

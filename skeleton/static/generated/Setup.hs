@@ -1,1 +1,1 @@
-import Obelisk.Setup.Static (main)
+import Jenga.Setup.Static (main)

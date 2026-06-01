@@ -50,7 +50,7 @@ custom-setup
   setup-depends:
     base >= 4.7 && < 5,
     Cabal >= 3.0 && < 4,
-    obelisk-setup
+    jenga-setup
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
@@ -164,8 +164,8 @@ library
                     , directory
                     , file-embed
                     , gargoyle-postgresql-connect
-                    , obelisk-backend
-                    , obelisk-route
+                    , jenga-backend
+                    , jenga-route-servant
                     , postgresql-simple
                     , resource-pool
                     , rhyolite-backend
@@ -199,7 +199,7 @@ executable backend
                     , base
                       --
                     , filepath
-                    , obelisk-backend
+                    , jenga-backend
 
     if flag(cross)
       if flag(wasm)

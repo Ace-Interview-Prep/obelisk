@@ -46,7 +46,7 @@ custom-setup
   setup-depends:
     base >= 4.7 && < 5,
     Cabal >= 3.0 && < 4,
-    obelisk-setup
+    jenga-setup
 
 library
     build-depends:      base

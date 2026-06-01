@@ -1,24 +1,26 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Backend where
 
-import Obelisk.Backend
-import Obelisk.Route
+import Snap.Core (pass)
 
-import Common
+import Jenga.Backend
+import Common.Route (FrontendPages, FrontendRoute(..))
+import Jenga.Frontend (Frontend(..))
+
 import Landing
 
-
-backend :: Backend BackendRoute FrontendRoute
+backend :: Backend FrontendPages FrontendRoute
 backend = Backend
-  { _backend_run = \serve -> serve $ \case
-      r@(BackendRoute_Landing :/ ()) -> serveLandingRoute r
-      r@(BackendRoute_About :/ ()) -> serveLandingRoute r
-      r@(BackendRoute_Blog :/ ()) -> serveLandingRoute r
-      BackendRoute_RobotsTxt :/ () -> serveRobotsTxt
-      
-      BackendRoute_Listen :/ () -> pure () -- TODO: rhyolite listen handler
-      BackendRoute_Api :/ apiRoute -> case apiRoute of
-        ApiRoute_Login :/ _msid -> pure () -- TODO: jenga-auth login handler
-        ApiRoute_ResetPassword :/ _msid -> pure () -- TODO: jenga-auth reset password handler
-        ApiRoute_Email :/ () -> pure () -- TODO: jenga-auth email handler
-  , _backend_routeEncoder = fullRouteEncoder
+  { _backend_apiHandler = do
+      -- TODO: API routes via servant-snap or Snap handlers
+      pass
+  , _backend_frontend = frontendForSSR
+  , _backend_fallbackRoute = FrontendRoute_Main
+  }
+
+-- Minimal frontend stub for SSR. The real frontend runs in the browser.
+frontendForSSR :: Frontend FrontendPages FrontendRoute
+frontendForSSR = Frontend
+  { _frontend_head = el "title" $ text "Jenga App"
+  , _frontend_body = text "Loading..."
   }

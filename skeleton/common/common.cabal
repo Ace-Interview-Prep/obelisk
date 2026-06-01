@@ -128,26 +128,37 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Common
+                      Common.ChatSchema
                       Common.Constants
+                      Common.Request
                       Common.Route
-
-    -- Modules included in this library but not exported.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
+                      Common.Schema
+                      Common.SchemaHelpers
+                      Common.Types
+                      Common.View
+                      Data.Map.Monoidal.Extras
 
     -- Other library packages from which modules are imported.
     build-depends:    base
-                      --
+                    , aeson
                     , bytestring
+                    , containers
+                    , email-validate
+                    , jenga-route-servant
+                    , servant
+                    , monoidal-containers
                     , mtl
-                    , obelisk-route
                     , signed-data
                     , text
     if !(arch(javascript) || arch(wasm32))
-      build-depends:  beam-core
+      build-depends:  aeson-gadt-th
+                    , beam-core
+                    , constraints-extras
+                    , dependent-sum-template
+                    , jenga-auth-common
                     , rhyolite-account-types
+                    , rhyolite-common
+                    , vessel
 
     -- Directories containing source files.
     hs-source-dirs:   src

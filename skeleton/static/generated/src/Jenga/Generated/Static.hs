@@ -5,7 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-module Obelisk.Generated.Static where
+module Jenga.Generated.Static where
 
 import qualified GHC.Types
 import Data.Text (Text)

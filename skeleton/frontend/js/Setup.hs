@@ -1,1 +1,1 @@
-import Obelisk.Setup.Frontend.Js (main)
+import Jenga.Setup.Frontend.Js (main)

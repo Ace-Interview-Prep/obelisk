@@ -17,7 +17,7 @@ indexHtml = T.unlines
   , "  <title>Welcome</title>"
   , "</head>"
   , "<body>"
-  , "  <h1>Welcome to Obelisk</h1>"
+  , "  <h1>Welcome to Jenga</h1>"
   , "  <nav>"
   , "    <a href=\"/about\">About</a> | "
   , "    <a href=\"/blog\">Blog</a> | "

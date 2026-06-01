@@ -1,1 +1,1 @@
-import Obelisk.Setup.Frontend.Wasm (main)
+import Jenga.Setup.Frontend.Wasm (main)

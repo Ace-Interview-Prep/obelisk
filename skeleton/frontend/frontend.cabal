@@ -143,10 +143,11 @@ library
                       --
                     , base
                       --
-                    , obelisk-frontend
-                    , obelisk-generated-static
-                    , obelisk-route
+                    , jenga-frontend
+                    , jenga-generated-static
+                    , jenga-route-servant
                     , reflex-dom
+                    , reflex-effectful
 
     if !(arch(javascript) || arch(wasm32))
       cpp-options:      -DNOT_REPL
@@ -178,7 +179,7 @@ executable frontend
                       --
                     , base
                       --
-                    , obelisk-frontend
+                    , jenga-frontend
                     , reflex-dom
 
     -- Directories containing source files.
