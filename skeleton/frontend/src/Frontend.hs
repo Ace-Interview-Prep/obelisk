@@ -5,6 +5,7 @@
 module Frontend where
 
 import Jenga.Generated.Static ()
+import Jenga.Frontend (Frontend(..))
 import Jenga.Route.Frontend
 import Reflex.Effectful
 import Reflex.Effectful.Run (WidgetEff')
