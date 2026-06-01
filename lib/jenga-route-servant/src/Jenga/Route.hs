@@ -166,17 +166,17 @@ class HasRoute api r where
 -- ─── URL rendering ─────────────────────────────────────────────
 
 -- | Render a route to a URL text. Uses 'encodeRoute'.
-renderRoute :: HasRoute api r => Proxy api -> r -> Text
-renderRoute _ = encodeRoute
+renderRoute :: forall api r. HasRoute api r => Proxy api -> r -> Text
+renderRoute _ = encodeRoute @api
 
 -- | Render a frontend route. For compatibility with obelisk-route
 -- code that uses @renderFrontendRoute enc route@.
-renderFrontendRoute :: HasRoute api r => Proxy api -> r -> Text
-renderFrontendRoute = renderRoute
+renderFrontendRoute :: forall api r. HasRoute api r => Proxy api -> r -> Text
+renderFrontendRoute = renderRoute @api
 
 -- | Render a backend route.
-renderBackendRoute :: HasRoute api r => Proxy api -> r -> Text
-renderBackendRoute = renderRoute
+renderBackendRoute :: forall api r. HasRoute api r => Proxy api -> r -> Text
+renderBackendRoute = renderRoute @api
 
 -- ─── URL parsing helpers ───────────────────────────────────────
 
