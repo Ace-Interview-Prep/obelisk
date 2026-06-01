@@ -250,18 +250,19 @@ runBrowserRouting _ fallback eff = do
   -- Store fireUrl in IORef so SetRoute interpreter can access it
   fireRef <- unsafeEff_ $ newIORef fireUrl
 
-  -- Interpret RouteToUrl (pure — no effects needed)
-  let eff1 = interpret_ (\case AskRouteToUrl -> pure (encodeRoute @api)) eff
-
-  -- Interpret SetRoute (needs PerformEvent from es)
-  let eff2 = interpret_ (\case
+  -- Strip effects from outermost to innermost:
+  -- Stack: Routed t r : SetRoute t r : RouteToUrl r : es
+  -- 1. Strip Routed (outermost)
+  -- 2. Strip SetRoute
+  -- 3. Strip RouteToUrl (innermost)
+  interpret_ (\case AskRouteToUrl -> pure (encodeRoute @api))
+    $ interpret_ (\case
         SetRoute ev ->
           performEvent_ $ R.ffor ev $ \route -> liftIO $ do
             fire <- readIORef fireRef
             fire (encodeRoute @api route)
         ModifyRoute _ -> pure ()
-        ) eff1
-
-  -- Interpret Routed (pure — returns the Dynamic)
-  interpret_ (\case AskRoute -> pure routeDyn) eff2
+      )
+    $ interpret_ (\case AskRoute -> pure routeDyn)
+    $ eff
 
