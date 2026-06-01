@@ -11,8 +11,8 @@
 
   shell = {
     crossPlatforms = ps: with ps; [
-      wasi32
-      # ghcjs  # uncomment for JS builds
+      # wasi32  # disabled: servant/generics-sop TH fails on GHC WASM backend
+      # ghcjs   # uncomment for JS builds
     ];
     withHoogle = true;
   };
