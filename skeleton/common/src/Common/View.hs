@@ -5,7 +5,7 @@
 module Common.View where
 
 #if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
-import Common.Schema
+import Common.Schema hiding (Id)
 import Common.Request
 import Data.Signed
 import Data.Functor.Identity (Identity)
