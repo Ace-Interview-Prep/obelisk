@@ -37,8 +37,18 @@ import qualified Effectful
 import           Effectful.Dispatch.Dynamic (send, interpret_)
 import           Reflex.Effectful.Effect.JSM (JSM')
 
+import           Control.Lens ((.~), (&), (%~))
+import           Control.Monad (when)
+
 import           Reflex (Dynamic, Event, Reflex)
 import qualified Reflex as R
+import           Reflex.Dom.Core
+                   ( GhcjsDomSpace, EventResult, ElementConfig, AttributeName(..)
+                   , elementConfig_initialAttributes, elementConfig_eventSpec
+                   , addEventSpecFlags, preventDefault
+                   , domEvent, EventName(Click)
+                   , Default(def)
+                   )
 
 import           Reflex.Effectful.Types (KnownTimeline)
 import           Reflex.Effectful.Effect.Hold (Hold, holdDyn)
@@ -47,10 +57,9 @@ import           Reflex.Effectful.Effect.PostBuild (PostBuild, getPostBuild)
 import           Reflex.Effectful.Effect.TriggerEvent (TriggerEvent, newTriggerEvent)
 import           Reflex.Effectful.Effect.PerformEvent (PerformEvent, performEvent_)
 import           Reflex.Effectful.Effect.Adjustable (Adjustable, runWithReplace)
-import           Reflex.Effectful.Effect.Dom (Dom, el', elAttr, text)
+import           Reflex.Effectful.Effect.Dom (Dom, el', elAttr, text, element)
+import           Reflex.Effectful.Effect.Prerender (Prerender)
 import           Reflex.Effectful.Effect.DomRenderHook (DomRenderHook, requestDomAction_)
-
-import           Reflex.Dom.Builder.Class (domEvent, EventName(Click))
 
 import qualified Language.Javascript.JSaddle as JS
 
@@ -114,16 +123,31 @@ switchRoute_ f = do
   pure ()
 
 -- | Create a link that navigates to a route on click.
+--
+-- Left-click: prevented, uses pushState (SPA navigation).
+-- Right-click / Ctrl+click: normal browser behavior (href is set).
+-- Crawlers: see the href, follow it normally.
+--
+-- Scrolls to top on navigation (matching browser behavior for
+-- full page loads).
 routeLink
   :: forall r t es.
      ( KnownTimeline es t, Dom t :> es
      , SetRoute t r :> es, RouteToUrl r :> es
+     , Prerender t :> es
      , Reflex t
      )
   => r -> Eff es () -> Eff es ()
 routeLink target child = do
   toUrl <- askRouteToUrl
-  (e, _) <- elAttr "a" (Map.fromList [("href", toUrl target)]) child
+  -- Build ElementConfig with preventDefault on Click
+  let cfg = (def :: ElementConfig EventResult t GhcjsDomSpace)
+        & elementConfig_initialAttributes
+            .~ Map.mapKeys (AttributeName Nothing) (Map.singleton "href" (toUrl target))
+        & elementConfig_eventSpec
+            %~ addEventSpecFlags (Proxy :: Proxy GhcjsDomSpace) Click
+                (const preventDefault)
+  (e, _) <- element "a" cfg child
   setRoute (target <$ domEvent Click e)
 
 -- | Create a text link that navigates to a route.
@@ -131,10 +155,35 @@ routeLink'
   :: forall r t es.
      ( KnownTimeline es t, Dom t :> es
      , SetRoute t r :> es, RouteToUrl r :> es
+     , Prerender t :> es
      , Reflex t
      )
   => r -> Text -> Eff es ()
 routeLink' target label = routeLink target (text label)
+
+-- | Like 'routeLink' but with additional attributes.
+routeLinkAttr
+  :: forall r t es.
+     ( KnownTimeline es t, Dom t :> es
+     , SetRoute t r :> es, RouteToUrl r :> es
+     , Prerender t :> es
+     , Reflex t
+     )
+  => Map Text Text -> r -> Eff es () -> Eff es ()
+routeLinkAttr attrs target child = do
+  toUrl <- askRouteToUrl
+  let targetBlank = Map.lookup "target" attrs == Just "_blank"
+      allAttrs = Map.insert "href" (toUrl target) attrs
+      cfg = (def :: ElementConfig EventResult t GhcjsDomSpace)
+        & elementConfig_initialAttributes
+            .~ Map.mapKeys (AttributeName Nothing) allAttrs
+        & (if targetBlank then id else
+            elementConfig_eventSpec
+              %~ addEventSpecFlags (Proxy :: Proxy GhcjsDomSpace) Click
+                  (const preventDefault))
+  (e, _) <- element "a" cfg child
+  when (not targetBlank) $
+    setRoute (target <$ domEvent Click e)
 
 -- ─── Browser interpreter ───────────────────────────────────────
 

@@ -11,23 +11,28 @@ library
     Jenga.Route.Frontend
     Jenga.Route.Backend
     Jenga.Route.TH
+    Jenga.Frontend
+    Jenga.Backend
 
   build-depends:
     , base              >=4.12 && <5
+    , bytestring
     , containers
+    , data-default
     , dependent-sum
     , effectful-core
+    , ghcjs-dom
     , http-types
     , jsaddle
+    , lens
     , reflex
     , reflex-dom-core
     , reflex-effectful
     , servant
     , servant-server
+    , snap-core
+    , snap-server
     , text
-    , wai
-    , wai-app-static
-    , warp
 
   hs-source-dirs:   src
   default-language:  Haskell2010
