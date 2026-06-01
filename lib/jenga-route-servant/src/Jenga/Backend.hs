@@ -52,6 +52,7 @@ module Jenga.Backend
   ) where
 
 import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Applicative ((<|>))
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
