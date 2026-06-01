@@ -10,6 +10,7 @@ library
     Jenga.Route
     Jenga.Route.Frontend
     Jenga.Route.Backend
+    Jenga.Route.TH
 
   build-depends:
     , base              >=4.12 && <5
