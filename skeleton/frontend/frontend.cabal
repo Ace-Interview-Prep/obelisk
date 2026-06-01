@@ -178,7 +178,7 @@ executable frontend
                       --
                     , base
                       --
-                    , jenga-frontend
+                    , jenga-route-servant
                     , reflex-dom
 
     -- Directories containing source files.
