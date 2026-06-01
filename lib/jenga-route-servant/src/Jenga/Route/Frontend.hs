@@ -39,6 +39,7 @@ import           Reflex.Effectful.Effect.JSM (JSM')
 
 import           Control.Lens ((.~), (&), (%~))
 import           Control.Monad (when)
+import           Control.Monad.IO.Class (liftIO)
 
 import           Reflex (Dynamic, Event, Reflex)
 import qualified Reflex as R
@@ -219,7 +220,7 @@ runBrowserRouting _ fallback eff = do
       JS.! ("location" :: Text) JS.! ("pathname" :: Text)
     search <- JS.valToText =<< JS.jsg ("window" :: Text)
       JS.! ("location" :: Text) JS.! ("search" :: Text)
-    JS.liftIO $ fireUrl (pathname <> search)
+    liftIO $ fireUrl (pathname <> search)
 
     -- Listen for popstate (browser back/forward)
     _ <- JS.jsg ("window" :: Text) JS.# ("addEventListener" :: Text)
@@ -229,7 +230,7 @@ runBrowserRouting _ fallback eff = do
               JS.! ("location" :: Text) JS.! ("pathname" :: Text)
             s <- JS.valToText =<< JS.jsg ("window" :: Text)
               JS.! ("location" :: Text) JS.! ("search" :: Text)
-            JS.liftIO $ fireUrl (p <> s)
+            liftIO $ fireUrl (p <> s)
         ]
     pure ()
 
@@ -265,8 +266,8 @@ runBrowserRouting _ fallback eff = do
                 , JS.toJSVal url
                 ]
             -- Fire the SAME trigger that Routed listens to
-            fire <- JS.liftIO $ readIORef fireRef
-            JS.liftIO $ fire url
+            fire <- liftIO $ readIORef fireRef
+            liftIO $ fire url
         ModifyRoute _ -> pure ()
 
       interpretRouted' :: Eff (Routed t r : es') b -> Eff es' b
