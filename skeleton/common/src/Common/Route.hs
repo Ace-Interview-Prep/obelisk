@@ -11,6 +11,8 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import Jenga.Route
+
 #if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
 import Data.Functor.Identity (Identity)
 import Database.Beam.Schema (PrimaryKey)
@@ -25,8 +27,6 @@ import Data.Signed (Signed(..))
 data AccountId
 type SignedAccountToken = Signed AccountId
 #endif
-
-import Jenga.Route
 
 -- ─── Servant API types (native only) ───────────────────────────
 
@@ -51,7 +51,6 @@ type BackendApi =
        :<|> "email"          :> Post '[JSON] ()
        )
 #else
--- On WASM/JS, we only need phantom types for the HasRoute instance
 data FrontendPages
 #endif
 
@@ -66,7 +65,7 @@ data FrontendRoute
   | FrontendRoute_RequestNewPassword
   deriving (Eq, Show)
 
--- ─── HasRoute instance (works on all platforms) ────────────────
+-- ─── HasRoute instance ─────────────────────────────────────────
 
 instance HasRoute FrontendPages FrontendRoute where
   encodeRoute = \case
