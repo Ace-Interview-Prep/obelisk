@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module Frontend where
 
 import Data.Default (def)
@@ -14,6 +15,7 @@ import Jenga.Frontend (Frontend(..))
 import Jenga.Route.Frontend
 import Reflex.Effectful
 import Reflex.Effectful.Run (WidgetEff')
+import Reflex.Effectful.Types (T)
 
 import Common.Route
 
@@ -80,7 +82,7 @@ counterWidget = do
 
 inputWidget :: WidgetEff' es t => Eff es ()
 inputWidget = do
-  inp <- inputElement def
+  inp <- inputElement @(T es) def
   el "p" $ do
     text "You typed: "
     dynText (_inputElement_value inp)
@@ -90,9 +92,9 @@ loginPage = do
   el "h1" $ text "Login"
   el "div" $ do
     el "p" $ text "Email:"
-    _ <- inputElement def
+    _ <- inputElement @(T es) def
     el "p" $ text "Password:"
-    _ <- inputElement def
+    _ <- inputElement @(T es) def
     el "br" blank
     (btn, _) <- el' "button" $ text "Sign In"
     ct <- count (domEvent Click btn)
@@ -104,7 +106,7 @@ signupPage :: WidgetEff' es t => Eff es ()
 signupPage = do
   el "h1" $ text "Sign Up"
   el "p" $ text "Create your account to get started."
-  _ <- inputElement def
+  _ <- inputElement @(T es) def
   el "br" blank
   (btn, _) <- el' "button" $ text "Create Account"
   clicked <- holdDyn False (True <$ domEvent Click btn)
@@ -116,7 +118,7 @@ resetPage :: WidgetEff' es t => Eff es ()
 resetPage = do
   el "h1" $ text "Reset Password"
   el "p" $ text "Enter your email to reset your password."
-  _ <- inputElement def
+  _ <- inputElement @(T es) def
   (btn, _) <- el' "button" $ text "Send Reset Link"
   sent <- holdDyn False (True <$ domEvent Click btn)
   dyn_ $ ffor sent $ \b ->
