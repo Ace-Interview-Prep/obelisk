@@ -259,17 +259,10 @@ runBrowserRouting _ fallback eff = do
       interpretSetRoute' = interpret_ $ \case
         SetRoute ev ->
           -- pushState + fire shared trigger so Routed Dynamic updates
-          requestDomAction_ $ R.ffor ev $ \route -> do
-            let url = encodeRoute @api route
-            _ <- JS.jsg ("window" :: Text) JS.! ("history" :: Text)
-              JS.# ("pushState" :: Text)
-              $ [ JS.toJSVal JS.JSNull
-                , JS.toJSVal ("" :: Text)
-                , JS.toJSVal url
-                ]
-            -- Fire the SAME trigger that Routed listens to
-            fire <- liftIO $ readIORef fireRef
-            liftIO $ fire url
+          performEvent_ $ R.ffor ev $ \route -> liftIO $ do
+            -- Fire the trigger directly — the URL will be parsed by Routed
+            fire <- readIORef fireRef
+            fire (encodeRoute @api route)
         ModifyRoute _ -> pure ()
 
       interpretRouted' :: Eff (Routed t r : es') b -> Eff es' b
