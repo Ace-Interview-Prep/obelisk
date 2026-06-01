@@ -240,7 +240,7 @@ runBrowserRouting _ fallback eff = do
   let parseOrFallback :: Text -> r
       parseOrFallback url =
         let (segs, qp) = urlToSegments url
-        in case (decodeRoute segs qp :: Maybe r) of
+        in case (decodeRoute @api segs qp) of
              Just r' -> r'
              Nothing -> fallback
 
@@ -253,14 +253,14 @@ runBrowserRouting _ fallback eff = do
   -- Interpret all three effects using shared state
   let interpretRouteToUrl' :: Eff (RouteToUrl r : es') b -> Eff es' b
       interpretRouteToUrl' = interpret_ $ \case
-        AskRouteToUrl -> pure encodeRoute
+        AskRouteToUrl -> pure (encodeRoute @api)
 
       interpretSetRoute' :: Eff (SetRoute t r : es') b -> Eff es' b
       interpretSetRoute' = interpret_ $ \case
         SetRoute ev ->
           -- pushState + fire shared trigger so Routed Dynamic updates
           requestDomAction_ $ R.ffor ev $ \route -> do
-            let url = encodeRoute route
+            let url = encodeRoute @api route
             _ <- JS.jsg ("window" :: Text) JS.! ("history" :: Text)
               JS.# ("pushState" :: Text)
               $ [ JS.toJSVal JS.JSNull
