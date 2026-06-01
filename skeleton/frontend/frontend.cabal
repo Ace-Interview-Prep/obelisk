@@ -152,6 +152,7 @@ library
                     , reflex-dom
                     , reflex-dom-core
                     , reflex-effectful
+                    , text
 
     if !(arch(javascript) || arch(wasm32))
       cpp-options:      -DNOT_REPL
