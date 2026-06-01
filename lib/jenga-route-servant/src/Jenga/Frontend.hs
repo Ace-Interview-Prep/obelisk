@@ -52,7 +52,7 @@ import           System.Info (os)
 
 import           Effectful (Eff, IOE, (:>))
 
-import           Reflex.Dom.Core hiding (blank, elAttr, el, text, dynText, display, elClass, elAttr')
+import qualified Reflex.Dom.Core as RD
 import           GHCJS.DOM.Types (JSM)
 import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Document as DOM
@@ -169,9 +169,9 @@ renderFrontendHtml
   -> (r -> Text)                -- ^ Route encoder
   -> r                          -- ^ Current route
   -> Frontend api r
-  -> (forall t m'. (DomBuilder t m', PostBuild t m', MonadHold t m') => m' ())
+  -> (forall t m'. (RD.DomBuilder t m', RD.PostBuild t m', RD.MonadHold t m') => m' ())
     -- ^ Extra head content (e.g. GHCJS preload link)
-  -> (forall t m'. (DomBuilder t m', PostBuild t m', MonadHold t m') => m' ())
+  -> (forall t m'. (RD.DomBuilder t m', RD.PostBuild t m', RD.MonadHold t m') => m' ())
     -- ^ Extra body content (e.g. GHCJS script tag)
   -> m ByteString
 renderFrontendHtml configs cookies urlEnc route frontend headExtra bodyExtra = do
