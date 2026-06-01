@@ -64,6 +64,7 @@ import qualified GHCJS.DOM.ParentNode as DOM
 import           Reflex.Effectful
 import           Reflex.Effectful.Run (WidgetEff')
 
+import           Data.Proxy (Proxy(..))
 import           Jenga.Route (HasRoute(..))
 import           Jenga.Route.Frontend
 
