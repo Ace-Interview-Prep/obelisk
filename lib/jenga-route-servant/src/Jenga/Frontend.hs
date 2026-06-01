@@ -52,7 +52,7 @@ import           System.Info (os)
 
 import           Effectful (Eff, IOE, (:>))
 
-import           Reflex.Dom.Core hiding (blank)
+import           Reflex.Dom.Core hiding (blank, elAttr, el, text, dynText, display, elClass, elAttr')
 import           GHCJS.DOM.Types (JSM)
 import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Document as DOM
