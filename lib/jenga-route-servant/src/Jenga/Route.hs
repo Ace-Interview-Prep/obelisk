@@ -201,7 +201,7 @@ parseQueryString qs = Map.fromList
   ]
 
 -- | Parse path segments into a route using 'decodeRoute'.
-parseUrlSegments :: HasRoute api r => Proxy api -> Text -> Maybe r
+parseUrlSegments :: forall api r. HasRoute api r => Proxy api -> Text -> Maybe r
 parseUrlSegments _ url =
   let (segs, qparams) = urlToSegments url
-  in decodeRoute segs qparams
+  in decodeRoute @api segs qparams
