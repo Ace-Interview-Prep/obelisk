@@ -186,7 +186,7 @@ serveFrontendRoute configs backend = do
   -- Parse the URL
   pageName <- getPageName
   let (segs, qparams) = pageName
-      currentRoute = case decodeRoute segs qparams of
+      currentRoute = case decodeRoute @api segs qparams of
         Just r  -> r
         Nothing -> _backend_fallbackRoute backend
 
@@ -197,7 +197,7 @@ serveFrontendRoute configs backend = do
   html <- liftIO $ renderFrontendHtml
     configs
     cookies
-    encodeRoute
+    (encodeRoute @api)
     currentRoute
     (_backend_frontend backend)
     (pure ())  -- headExtra: could add preload link
