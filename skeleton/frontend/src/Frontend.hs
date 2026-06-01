@@ -5,7 +5,7 @@
 module Frontend where
 
 import Data.Default (def)
-import Data.Text (pack)
+import Data.Text (Text, pack)
 import Reflex (leftmost, updated, ffor)
 import Reflex.Dom.Builder.Class (domEvent, EventName(Click))
 import Reflex.Dom.Core (_inputElement_value)
