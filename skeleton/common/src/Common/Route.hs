@@ -63,7 +63,7 @@ data FrontendRoute
   | FrontendRoute_ResetPassword
   | FrontendRoute_ResetPasswordToken Text
   | FrontendRoute_RequestNewPassword
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 -- ─── HasRoute instance ─────────────────────────────────────────
 
