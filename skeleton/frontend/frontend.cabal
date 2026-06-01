@@ -144,6 +144,8 @@ library
                     , base
                       --
                     , jenga-generated-static
+                    , containers
+                    , jsaddle-warp
                     , jenga-route-servant
                     , reflex-dom
                     , reflex-effectful
@@ -178,6 +180,8 @@ executable frontend
                       --
                     , base
                       --
+                    , containers
+                    , jsaddle-warp
                     , jenga-route-servant
                     , reflex-dom
 
