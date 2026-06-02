@@ -5,6 +5,7 @@
 module Frontend where
 
 import Reflex (leftmost, ffor)
+import Data.Text (Text)
 import Reflex.Dom.Builder.Class (domEvent, EventName(Click))
 
 import Jenga.Frontend (Frontend(..))
