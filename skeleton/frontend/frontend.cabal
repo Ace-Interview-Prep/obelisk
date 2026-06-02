@@ -185,9 +185,10 @@ executable frontend
                     , base
                       --
                     , containers
-                    , jsaddle-warp
                     , jenga-route-servant
                     , reflex-dom
+    if !(arch(wasm32) || arch(javascript))
+      build-depends:    jsaddle-warp
 
     -- Directories containing source files.
     hs-source-dirs:   app
