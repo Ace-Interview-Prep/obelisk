@@ -1,4 +1,4 @@
-{ pkgs, jengaLib, ... }:
+{ pkgs, jengaLib, lib, ... }:
 
 {
 
@@ -11,15 +11,21 @@
 
   shell = {
     crossPlatforms = ps: with ps; [
-      # wasi32  # disabled: servant/generics-sop TH fails on GHC WASM backend
-      # ghcjs   # uncomment for JS builds
+      wasi32
+      # ghcjs
     ];
     withHoogle = true;
   };
 
-  # Mobile & Web targets — uncomment when module options are declared:
-  # android = { ... };
-  # ios = { ... };
+  # Backend-only source-repository-packages.
+  # These are NOT included in source-repository-packages (which gets
+  # resolved for ALL platforms including WASM). Instead, we provide
+  # them as a native-only override.
+  overrides = [
+    ({ config, pkgs, lib, ... }: lib.mkIf (!pkgs.stdenv.hostPlatform.isWasm) {
+      packages.jenga-backend-servant.src = jengaLib.src + "/lib/jenga-backend-servant";
+    })
+  ];
 
   #optimizations.all = true;
 

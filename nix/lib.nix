@@ -190,7 +190,11 @@ in rec {
     scrappy-template = src + "/lib/scrappy-template";
     reflex-effectful = src + "/lib/reflex-effectful";
     jenga-route-servant = src + "/lib/jenga-route-servant";
-    jenga-backend-servant = src + "/lib/jenga-backend-servant";
+    # jenga-backend-servant excluded from source-repository-packages
+    # because haskell.nix resolves all SRPs for WASM too, and
+    # servant-server/snap-core/network can't build for WASM.
+    # The backend skeleton's cabal.project adds it directly.
+    # jenga-backend-servant = src + "/lib/jenga-backend-servant";
 
     reflex-dom = src + "/deps/reflex-dom/reflex-dom";
     reflex-dom-core = src + "/deps/reflex-dom/reflex-dom-core";
