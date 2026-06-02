@@ -190,6 +190,7 @@ in rec {
     scrappy-template = src + "/lib/scrappy-template";
     reflex-effectful = src + "/lib/reflex-effectful";
     jenga-route-servant = src + "/lib/jenga-route-servant";
+    jenga-backend-servant = src + "/lib/jenga-backend-servant";
 
     reflex-dom = src + "/deps/reflex-dom/reflex-dom";
     reflex-dom-core = src + "/deps/reflex-dom/reflex-dom-core";

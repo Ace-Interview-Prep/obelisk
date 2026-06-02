@@ -1,31 +1,30 @@
 cabal-version:      3.0
-name:               jenga-route-servant
+name:               jenga-backend-servant
 version:            0.1.0.0
-synopsis:           Servant-based routing for Jenga (frontend-safe, no native deps)
+synopsis:           Backend server for Jenga using Snap + Servant
 license:            BSD-3-Clause
 build-type:         Simple
 
 library
   exposed-modules:
-    Jenga.Route
-    Jenga.Route.Frontend
-    Jenga.Route.TH
-    Jenga.Frontend
+    Jenga.Route.Backend
+    Jenga.Backend
 
   build-depends:
     , base              >=4.12 && <5
     , bytestring
     , containers
-    , data-default
-    , dependent-sum
-    , effectful-core
-    , ghcjs-dom
-    , jsaddle
-    , lens
-    , reflex
-    , reflex-dom-core
+    , http-types
+    , jenga-route-servant
     , reflex-effectful
+    , servant
+    , servant-server
+    , snap-core
+    , snap-server
     , text
+    , wai
+    , wai-app-static
+    , warp
 
   hs-source-dirs:   src
   default-language:  Haskell2010
