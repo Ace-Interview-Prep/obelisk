@@ -4,7 +4,9 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Common.Types where
 
+#if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
 import Jenga.Common.Errors
+#endif
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString as BS
