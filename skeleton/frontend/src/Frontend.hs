@@ -53,7 +53,7 @@ navbar = elClass "nav" "navbar" $ do
 
 navLink :: (WidgetEff' es t, SetRoute t FrontendRoute :> es) => FrontendRoute -> Text -> Eff es ()
 navLink route label = do
-  (e, _) <- elAttr "a" (Map.fromList [("href", "#"), ("class", "nav-link")]) $ text label
+  (e, _) <- el' "a" $ text label
   setRoute (route <$ domEvent Click e)
 
 -- ─── Home Page ─────────────────────────────────────────────────
@@ -69,15 +69,15 @@ homePage = do
     elClass "div" "card" $ do
       el "h2" $ text "Counter"
       el "div" $ do
-        (dec, _) <- elAttr "button" (Map.singleton "class" "btn") $ text "-"
-        (inc, _) <- elAttr "button" (Map.singleton "class" "btn") $ text "+"
+        (dec, _) <- el' "button" $ text "-"
+        (inc, _) <- el' "button" $ text "+"
         val <- foldDyn (+) (0 :: Int) (leftmost [1 <$ domEvent Click inc, (-1) <$ domEvent Click dec])
         elClass "span" "counter-val" $ display val
 
     -- API call card
     elClass "div" "card" $ do
       el "h2" $ text "API Response"
-      (fetchBtn, _) <- elAttr "button" (Map.singleton "class" "btn") $ text "Fetch Data"
+      (fetchBtn, _) <- el' "button" $ text "Fetch Data"
       let fetchEv = domEvent Click fetchBtn
 
       -- Simulate API call with performEvent
@@ -91,7 +91,7 @@ homePage = do
     -- Dynamic widget card
     elClass "div" "card" $ do
       el "h2" $ text "Dynamic Toggle"
-      (toggleBtn, _) <- elAttr "button" (Map.singleton "class" "btn") $ text "Toggle"
+      (toggleBtn, _) <- el' "button" $ text "Toggle"
       showDetail <- toggle False (domEvent Click toggleBtn)
       dyn_ $ ffor showDetail $ \b ->
         if b
@@ -107,7 +107,7 @@ loginPage :: WidgetEff' es t => Eff es ()
 loginPage = elClass "div" "form-page" $ do
   el "h1" $ text "Login"
   elClass "p" "form-hint" $ text "Demo: click Sign In to simulate authentication"
-  (btn, _) <- elAttr "button" (Map.singleton "class" "btn primary") $ text "Sign In"
+  (btn, _) <- el' "button" $ text "Sign In"
 
   -- Simulate auth flow
   authEv <- performEvent $ ffor (domEvent Click btn) $ \_ -> do
@@ -123,7 +123,7 @@ signupPage :: WidgetEff' es t => Eff es ()
 signupPage = elClass "div" "form-page" $ do
   el "h1" $ text "Create Account"
   elClass "p" "form-hint" $ text "Demo: click to create an account"
-  (btn, _) <- elAttr "button" (Map.singleton "class" "btn primary") $ text "Create Account"
+  (btn, _) <- el' "button" $ text "Create Account"
 
   signupEv <- performEvent $ ffor (domEvent Click btn) $ \_ -> do
     threadDelay 600000
@@ -137,7 +137,7 @@ signupPage = elClass "div" "form-page" $ do
 resetPage :: WidgetEff' es t => Eff es ()
 resetPage = elClass "div" "form-page" $ do
   el "h1" $ text "Reset Password"
-  (btn, _) <- elAttr "button" (Map.singleton "class" "btn") $ text "Send Reset Link"
+  (btn, _) <- el' "button" $ text "Send Reset Link"
   sent <- holdDyn False (True <$ domEvent Click btn)
   dyn_ $ ffor sent $ \b ->
     if b then elClass "p" "status success" $ text "Reset link sent! Check your email."
