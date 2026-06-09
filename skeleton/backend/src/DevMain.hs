@@ -1,26 +1,24 @@
 -- | Development entry point for ghcid. NOT listed in backend.cabal —
--- only used interpreted via multi-repl where Frontend is in scope.
+-- only used interpreted via ghcid's :add.
 module DevMain (devMain) where
 
-import Jenga.Backend
-import System.FilePath ((</>))
+import Jenga.Backend.Servant
 
 import Backend (backend)
-import Frontend (frontend)
-import Paths (dataDir)
+import Paths (dataFileName)
 
 devMain :: IO ()
-devMain = runBackendWith config backend frontend
+devMain = runBackendWith config backend
   where
     config = BackendConfig
       { _backendConfig_runSnap = runSnapWithCommandLineArgs
       , _backendConfig_staticAssets = StaticAssets
-          { _staticAssets_processed = dataDir </> "static.assets"
-          , _staticAssets_unprocessed = dataDir </> "static"
+          { _staticAssets_processed = dataFileName "static.assets"
+          , _staticAssets_unprocessed = dataFileName "static"
           }
-      , _backendConfig_frontendGhcjsAssets = StaticAssets
-          { _staticAssets_processed = dataDir </> "frontend.jsexe.assets"
-          , _staticAssets_unprocessed = dataDir </> "frontend.jsexe"
+      , _backendConfig_frontendAssets = StaticAssets
+          { _staticAssets_processed = dataFileName "frontend.jsexe.assets"
+          , _staticAssets_unprocessed = dataFileName "frontend.jsexe"
           }
       , _backendConfig_ghcjsWidgets = defaultGhcjsWidgets
       }

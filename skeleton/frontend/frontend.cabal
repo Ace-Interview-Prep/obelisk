@@ -130,6 +130,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Frontend
+                      Frontend.Grid
                       Frontend.Paths
 
     -- Modules included in this library but not exported.
@@ -145,19 +146,30 @@ library
                       --
                     , jenga-generated-static
                     , containers
-                    , jsaddle-warp
                     , data-default
                     , jenga-route-servant
                     , reflex
                     , reflex-dom
                     , reflex-dom-core
+                    , ClasshSS
+                    , effectful-core
+                    , ghc-typelits-natnormalise
+                    , ghc-typelits-knownnat
+                    , grid-effect
+                    , lens
+                    , reflex-classhss
                     , reflex-effectful
                     , text
+
+    if !(arch(javascript) || arch(wasm32))
+      build-depends:  servant
+                    , servant-jsaddle
 
     if !(arch(javascript) || arch(wasm32))
       cpp-options:      -DNOT_REPL
       other-modules:    Paths_frontend
       build-depends:    file-embed
+                      , jsaddle-warp
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -189,6 +201,8 @@ executable frontend
                     , reflex-dom
     if !(arch(wasm32) || arch(javascript))
       build-depends:    jsaddle-warp
+    if arch(wasm32)
+      build-depends:    jsaddle-wasm
 
     -- Directories containing source files.
     hs-source-dirs:   app

@@ -161,16 +161,20 @@ library
                       --
                     , base
                       --
+                    , aeson
                     , directory
                     , file-embed
                     , gargoyle-postgresql-connect
-                    , jenga-backend
                     , jenga-backend-servant
                     , jenga-route-servant
+                    , reflex-effectful
                     , postgresql-simple
                     , resource-pool
                     , rhyolite-backend
+                    , servant
+                    , servant-snap
                     , snap-core
+                    , text
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -200,7 +204,7 @@ executable backend
                     , base
                       --
                     , filepath
-                    , jenga-backend
+                    , jenga-backend-servant
 
     if flag(cross)
       if flag(wasm)

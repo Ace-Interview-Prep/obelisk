@@ -14,6 +14,7 @@ import qualified Data.Text as T
 import Jenga.Route
 
 #if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
+import Data.Aeson (Value)
 import Data.Functor.Identity (Identity)
 import Database.Beam.Schema (PrimaryKey)
 import Rhyolite.Account (Account)
@@ -85,3 +86,11 @@ instance HasRoute FrontendPages FrontendRoute where
     ["request-new-password"] -> Just FrontendRoute_RequestNewPassword
     []                       -> Just FrontendRoute_Main
     _                        -> Nothing
+
+#if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
+-- ─── Shared backend API type ─────────────────────────────────
+
+type SkeletonApi =
+       "hello" :> Get '[JSON] Value
+  :<|> "echo"  :> ReqBody '[JSON] Value :> Post '[JSON] Value
+#endif

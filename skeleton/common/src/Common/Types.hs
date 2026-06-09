@@ -29,4 +29,6 @@ instance FromJSON NameError
 instance ToJSON EmailAddress
 instance FromJSON EmailAddress
 
+#if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
 instance SpecificError (BackendError NameError)
+#endif

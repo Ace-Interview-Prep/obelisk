@@ -1,19 +1,41 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NoStarIsType #-}
 module Frontend where
 
 import Control.Concurrent (threadDelay)
-import Data.Text (Text, pack)
-import qualified Data.Map as Map
-import Reflex (leftmost, ffor, updated)
+import Control.Monad.IO.Class (liftIO)
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Functor ((<$))
+import Data.Default (def)
+import Data.Proxy (Proxy(..))
+import Reflex (Reflex, leftmost, ffor)
 import Reflex.Dom.Builder.Class (domEvent, EventName(Click))
+import Reflex.Dom.Xhr (xhrRequest, _xhrResponse_responseText)
+
+#if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
+import Servant.API ((:<|>)(..))
+import Servant.Client.JSaddle (BaseUrl(..), Scheme(..), client, mkClientEnv, runClientM)
+import Common.Route (SkeletonApi)
+#endif
 
 import Jenga.Frontend (Frontend(..))
 import Jenga.Route.Frontend
 import Reflex.Effectful
 import Reflex.Effectful.Run (WidgetEff')
+
+import qualified Grid.Effect.Eff as G
+import Frontend.Grid (dashboardGrid)
+
+import Classh
+import Classh.Reflex.Eff (gridCol, col, centerSimple)
 
 import Common.Route
 
@@ -24,155 +46,121 @@ frontend = Frontend
   }
 
 frontendHead :: (WidgetEff' es t, Routed t FrontendRoute :> es) => Eff es ()
-frontendHead = do
-  el "title" $ text "Jenga Effectful"
-  -- Inline styles for a nicer look
-  el "style" $ text css
+frontendHead = el "title" $ text "Jenga + GridEff + ClasshSS"
 
 frontendBody :: (WidgetEff' es t, Routed t FrontendRoute :> es, SetRoute t FrontendRoute :> es, RouteToUrl FrontendRoute :> es) => Eff es ()
-frontendBody = do
-  elClass "div" "app" $ do
-    navbar
-    elClass "div" "content" $ do
-      switchRoute_ $ \case
-        FrontendRoute_Main -> homePage
-        FrontendRoute_Login -> loginPage
-        FrontendRoute_Signup -> signupPage
-        FrontendRoute_ResetPassword -> resetPage
-        _ -> resetPage
+frontendBody = elClass "div" "max-w-7xl mx-auto p-5" $ do
+  navbar
+  switchRoute_ $ \case
+    FrontendRoute_Main -> dashboardPage
+    FrontendRoute_Login -> loginPage
+    FrontendRoute_Signup -> signupPage
+    _ -> dashboardPage
 
--- ─── Navigation ────────────────────────────────────────────────
-
+-- Navbar: box classh' for layout, text classh' for text styling
 navbar :: (WidgetEff' es t, SetRoute t FrontendRoute :> es, Routed t FrontendRoute :> es) => Eff es ()
-navbar = elClass "nav" "navbar" $ do
-  elClass "span" "logo" $ text "Jenga"
-  elClass "div" "nav-links" $ do
-    navLink FrontendRoute_Main "Home"
-    navLink FrontendRoute_Login "Login"
-    navLink FrontendRoute_Signup "Sign Up"
+navbar = elClass "nav" $(classh' [ py .~~ TWSize 4, bw_b .~~ B1, bc .~~ color (Gray C800), mb .~~ twSize' 8 ]) $ do
+  elClass "span" $(classh' [ text_size .~~ XL, text_weight .~~ Bold, text_color .~~ color (Sky C400) ]) $ text "Jenga"
+  elClass "div" "flex gap-4 ml-8" $ do
+    navBtn FrontendRoute_Main "Dashboard"
+    navBtn FrontendRoute_Login "Login"
+    navBtn FrontendRoute_Signup "Sign Up"
 
-navLink :: (WidgetEff' es t, SetRoute t FrontendRoute :> es) => FrontendRoute -> Text -> Eff es ()
-navLink route label = do
-  (e, _) <- el' "a" $ text label
+navBtn :: (WidgetEff' es t, SetRoute t FrontendRoute :> es) => FrontendRoute -> Text -> Eff es ()
+navBtn route label = do
+  (e, _) <- elClass' "a" $(classh' [ cursor .~~ CursorPointer, px .~~ TWSize 4, py .~~ TWSize 2, br .~~ R_Lg ]) $
+    elClass "span" $(classh' [ text_color .~~ color (Gray C400) ]) $ text label
   setRoute (route <$ domEvent Click e)
 
--- ─── Home Page ─────────────────────────────────────────────────
+-- Dashboard with GridEff budget tracking
+dashboardPage :: WidgetEff' es t => Eff es ()
+dashboardPage = do
+  elClass "div" $(classh' [ py .~~ TWSize 8, pos .~~ centered ]) $ do
+    elClass "h1" $(classh' [ text_size .~~ XL3, text_weight .~~ Bold ]) $ text "Type-Safe Grid Layout"
+    elClass "p" $(classh' [ text_color .~~ color (Gray C500), text_size .~~ SM ]) $ text "Column budgets enforced at compile time"
 
-homePage :: WidgetEff' es t => Eff es ()
-homePage = do
-  elClass "div" "hero" $ do
-    el "h1" $ text "Jenga + Effectful"
-    elClass "p" "subtitle" $ text "Full-stack Haskell with GHC 9.14 | Effectful effects | Servant routing"
+  gridCol Col12 $ G.runGridEff_exact $ dashboardGrid
+    sidebarW mainW
+    (cardW "Counter" counterW) (cardW "API Call" apiW) (cardW "Toggle" toggleW)
+    (infoW "Effectful" "All effects type-tracked.") (infoW "GridEff" "Overflow = type error.")
+    (elClass "div" $(classh' [ py .~~ TWSize 4, pos .~~ centered ]) $
+      elClass "span" $(classh' [ text_color .~~ color (Gray C600), text_size .~~ XS ]) $
+        text "Jenga + Effectful + GridEff + ClasshSS")
 
-  elClass "div" "cards" $ do
-    -- Counter card
-    elClass "div" "card" $ do
-      el "h2" $ text "Counter"
-      el "div" $ do
-        (dec, _) <- el' "button" $ text "-"
-        (inc, _) <- el' "button" $ text "+"
-        val <- foldDyn (+) (0 :: Int) (leftmost [1 <$ domEvent Click inc, (-1) <$ domEvent Click dec])
-        elClass "span" "counter-val" $ display val
+-- Box styling with classh', text styling with separate classh'
+sidebarW :: WidgetEff' es t => Eff es ()
+sidebarW = col [4] $ elClass "div" $(classh' [ bgColor .~~ solidColor (Gray C800), br .~~ R_Xl, p .~~ TWSize 5, bw .~~ B1, bc .~~ color (Gray C700) ]) $ do
+  elClass "h2" $(classh' [ text_color .~~ color (Sky C400), text_weight .~~ Semibold ]) $ text "Navigation"
+  mapM_ (\t -> elClass "div" $(classh' [ py .~~ TWSize 2, px .~~ TWSize 3, br .~~ R_Md, cursor .~~ CursorPointer ]) $
+    elClass "span" $(classh' [ text_color .~~ color (Gray C400) ]) $ text t)
+    ["Dashboard", "Analytics", "Settings", "Users"]
 
-    -- API call card
-    elClass "div" "card" $ do
-      el "h2" $ text "API Response"
-      (fetchBtn, _) <- el' "button" $ text "Fetch Data"
-      let fetchEv = domEvent Click fetchBtn
+mainW :: WidgetEff' es t => Eff es ()
+mainW = col [8] $ elClass "div" $(classh' [ bgColor .~~ solidColor (Gray C800), br .~~ R_Xl, p .~~ TWSize 6, bw .~~ B1, bc .~~ color (Gray C700) ]) $ do
+  elClass "h1" $(classh' [ text_size .~~ XL2, text_weight .~~ Bold ]) $ text "Welcome to Jenga"
+  elClass "p" $(classh' [ text_color .~~ color (Gray C400) ]) $ text "Compile-time grid budget tracking."
 
-      -- Simulate API call with performEvent
-      responseEv <- performEvent $ ffor fetchEv $ \_ -> do
-        threadDelay 500000  -- simulate network delay
-        pure ("{ \"status\": \"ok\", \"users\": 42, \"server\": \"GHC 9.14.1\" }" :: Text)
+cardW :: WidgetEff' es t => Text -> Eff es () -> Eff es ()
+cardW title w = col [4] $ elClass "div" $(classh' [ bgColor .~~ solidColor (Gray C800), br .~~ R_Xl, p .~~ TWSize 5, bw .~~ B1, bc .~~ color (Gray C700) ]) $ do
+  elClass "h2" $(classh' [ text_color .~~ color (Sky C400), text_weight .~~ Semibold ]) $ text title
+  w
 
-      response <- holdDyn "Click 'Fetch Data' to call the API" responseEv
-      elClass "pre" "api-response" $ dynText response
+infoW :: WidgetEff' es t => Text -> Text -> Eff es ()
+infoW title desc = col [6] $ elClass "div" $(classh' [ bgColor .~~ solidColor (Gray C800), br .~~ R_Xl, p .~~ TWSize 5, bw .~~ B1, bc .~~ color (Gray C700) ]) $ do
+  el "div" $ blank
+  elClass "h2" $(classh' [ text_color .~~ color (Sky C400), text_weight .~~ Semibold ]) $ text title
+  elClass "p" $(classh' [ text_color .~~ color (Gray C400), text_size .~~ SM ]) $ text desc
 
-    -- Dynamic widget card
-    elClass "div" "card" $ do
-      el "h2" $ text "Dynamic Toggle"
-      (toggleBtn, _) <- el' "button" $ text "Toggle"
-      showDetail <- toggle False (domEvent Click toggleBtn)
-      dyn_ $ ffor showDetail $ \b ->
-        if b
-          then elClass "div" "detail" $ do
-            el "p" $ text "This widget was dynamically swapped in!"
-            el "p" $ text "widgetHold powers Adjustable — widgets replace each other on the fly."
-          else elClass "div" "detail" $ do
-            el "p" $ text "Click Toggle to swap this widget."
+counterW :: WidgetEff' es t => Eff es ()
+counterW = el "div" $ do
+  (dec, _) <- elClass' "button" $(classh' [ bgColor .~~ solidColor (Gray C700), px .~~ TWSize 4, py .~~ TWSize 2, br .~~ R_Md, cursor .~~ CursorPointer ]) $ text "-"
+  (inc, _) <- elClass' "button" $(classh' [ bgColor .~~ solidColor (Gray C700), px .~~ TWSize 4, py .~~ TWSize 2, br .~~ R_Md, cursor .~~ CursorPointer ]) $ text "+"
+  val <- foldDyn (+) (0 :: Int) (leftmost [1 <$ domEvent Click inc, (-1) <$ domEvent Click dec])
+  elClass "span" $(classh' [ text_size .~~ XL2, text_weight .~~ Bold, text_color .~~ color (Sky C400) ]) $ display val
 
--- ─── Login Page ────────────────────────────────────────────────
+apiW :: WidgetEff' es t => Eff es ()
+apiW = do
+  (btn, _) <- elClass' "button" $(classh' [ bgColor .~~ solidColor (Blue C600), px .~~ TWSize 4, py .~~ TWSize 2, br .~~ R_Md, cursor .~~ CursorPointer ]) $ text "Fetch API"
+#if !defined(javascript_HOST_ARCH) && !defined(wasm32_HOST_ARCH)
+  -- Type-safe servant client via servant-jsaddle
+  let env = mkClientEnv (BaseUrl Http "localhost" 8000 "api")
+      helloC :<|> _ = client (Proxy @SkeletonApi)
+  respEv <- performEvent $ ffor (domEvent Click btn) $ \_ -> do
+    result <- runClientM helloC env
+    pure $ case result of
+      Left err -> "Error: " <> T.pack (show err)
+      Right val -> T.pack (show val)
+#else
+  -- Raw XHR fallback on WASM
+  xhrEv <- performRequestAsync $ ffor (domEvent Click btn) $ \_ ->
+    xhrRequest "GET" "/api/hello" def
+  let respEv = ffor xhrEv $ \xhr ->
+        maybe "No response" id (_xhrResponse_responseText xhr)
+#endif
+  response <- holdDyn "Click to call /api/hello" respEv
+  elClass "pre" $(classh' [ bgColor .~~ solidColor (Gray C900), p .~~ TWSize 3, br .~~ R_Md, mt .~~ twSize' 2 ]) $
+    elClass "span" $(classh' [ text_size .~~ XS, text_color .~~ color (Green C400), text_font .~~ Mono ]) $ dynText response
+
+toggleW :: WidgetEff' es t => Eff es ()
+toggleW = do
+  (btn, _) <- elClass' "button" $(classh' [ bgColor .~~ solidColor (Gray C700), px .~~ TWSize 4, py .~~ TWSize 2, br .~~ R_Md, cursor .~~ CursorPointer ]) $ text "Toggle"
+  showDetail <- toggle False (domEvent Click btn)
+  dyn_ $ ffor showDetail $ \b ->
+    elClass "div" $(classh' [ bgColor .~~ solidColor (Gray C900), p .~~ TWSize 3, br .~~ R_Md, mt .~~ twSize' 2 ]) $
+      elClass "span" $(classh' [ text_color .~~ color (Gray C400), text_size .~~ SM ]) $
+        if b then text "Widget swapped in!" else text "Click to swap."
 
 loginPage :: WidgetEff' es t => Eff es ()
-loginPage = elClass "div" "form-page" $ do
-  el "h1" $ text "Login"
-  elClass "p" "form-hint" $ text "Demo: click Sign In to simulate authentication"
-  (btn, _) <- el' "button" $ text "Sign In"
-
-  -- Simulate auth flow
-  authEv <- performEvent $ ffor (domEvent Click btn) $ \_ -> do
-    threadDelay 800000  -- simulate API call
-    pure ("Authenticated as admin@jenga.dev" :: Text)
-
+loginPage = centerSimple $ elClass "div" "max-w-md w-full py-12" $ do
+  elClass "h1" $(classh' [ text_size .~~ XL2, text_weight .~~ Bold ]) $ text "Login"
+  (btn, _) <- elClass' "button" $(classh' [ bgColor .~~ solidColor (Blue C600), px .~~ TWSize 6, py .~~ TWSize 3, br .~~ R_Lg, cursor .~~ CursorPointer ]) $ text "Sign In"
+  authEv <- performEvent $ ffor (domEvent Click btn) $ \_ -> liftIO $ threadDelay 800000 >> pure ("Authenticated!" :: Text)
   status <- holdDyn "" authEv
-  elClass "p" "status" $ dynText status
-
--- ─── Signup Page ───────────────────────────────────────────────
+  elClass "p" $(classh' [ text_color .~~ color (Sky C400) ]) $ dynText status
 
 signupPage :: WidgetEff' es t => Eff es ()
-signupPage = elClass "div" "form-page" $ do
-  el "h1" $ text "Create Account"
-  elClass "p" "form-hint" $ text "Demo: click to create an account"
-  (btn, _) <- el' "button" $ text "Create Account"
-
-  signupEv <- performEvent $ ffor (domEvent Click btn) $ \_ -> do
-    threadDelay 600000
-    pure ("Account created! Welcome to Jenga." :: Text)
-
-  msg <- holdDyn "" signupEv
-  elClass "p" "status success" $ dynText msg
-
--- ─── Reset Page ────────────────────────────────────────────────
-
-resetPage :: WidgetEff' es t => Eff es ()
-resetPage = elClass "div" "form-page" $ do
-  el "h1" $ text "Reset Password"
-  (btn, _) <- el' "button" $ text "Send Reset Link"
-  sent <- holdDyn False (True <$ domEvent Click btn)
-  dyn_ $ ffor sent $ \b ->
-    if b then elClass "p" "status success" $ text "Reset link sent! Check your email."
-         else elClass "p" "form-hint" $ text "Enter your email to reset your password."
-
--- ─── Styles ────────────────────────────────────────────────────
-
-css :: Text
-css = "\
-  \* { margin: 0; padding: 0; box-sizing: border-box; }\
-  \body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }\
-  \.app { max-width: 900px; margin: 0 auto; padding: 20px; }\
-  \.navbar { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid #1e293b; margin-bottom: 32px; }\
-  \.logo { font-size: 24px; font-weight: bold; color: #38bdf8; margin-right: 32px; }\
-  \.nav-links { display: flex; gap: 16px; }\
-  \.nav-link { color: #94a3b8; text-decoration: none; cursor: pointer; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }\
-  \.nav-link:hover { color: #e2e8f0; background: #1e293b; }\
-  \.hero { text-align: center; padding: 48px 0; }\
-  \.hero h1 { font-size: 36px; color: #f1f5f9; margin-bottom: 12px; }\
-  \.subtitle { color: #64748b; font-size: 16px; }\
-  \.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 32px; }\
-  \.card { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; }\
-  \.card h2 { font-size: 18px; color: #38bdf8; margin-bottom: 16px; }\
-  \.btn { background: #334155; color: #e2e8f0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; }\
-  \.btn:hover { background: #475569; }\
-  \.btn.primary { background: #2563eb; }\
-  \.btn.primary:hover { background: #1d4ed8; }\
-  \.counter-val { font-size: 32px; font-weight: bold; color: #38bdf8; margin: 0 16px; }\
-  \.api-response { background: #0f172a; padding: 12px; border-radius: 6px; font-size: 13px; color: #4ade80; overflow-x: auto; margin-top: 12px; white-space: pre-wrap; }\
-  \.detail { padding: 12px; background: #0f172a; border-radius: 6px; margin-top: 12px; }\
-  \.detail p { margin: 4px 0; color: #94a3b8; }\
-  \.form-page { max-width: 400px; margin: 0 auto; text-align: center; padding-top: 48px; }\
-  \.form-page h1 { margin-bottom: 16px; }\
-  \.form-hint { color: #64748b; margin-bottom: 24px; }\
-  \.status { margin-top: 16px; color: #38bdf8; }\
-  \.status.success { color: #4ade80; }\
-  \hr { border-color: #1e293b; margin: 24px 0; }\
-  \"
+signupPage = centerSimple $ elClass "div" "max-w-md w-full py-12" $ do
+  elClass "h1" $(classh' [ text_size .~~ XL2, text_weight .~~ Bold ]) $ text "Create Account"
+  (btn, _) <- elClass' "button" $(classh' [ bgColor .~~ solidColor (Green C600), px .~~ TWSize 6, py .~~ TWSize 3, br .~~ R_Lg, cursor .~~ CursorPointer ]) $ text "Create Account"
+  msg <- holdDyn "" =<< performEvent (ffor (domEvent Click btn) $ \_ -> liftIO $ threadDelay 600000 >> pure ("Account created!" :: Text))
+  elClass "p" $(classh' [ text_color .~~ color (Green C400) ]) $ dynText msg
