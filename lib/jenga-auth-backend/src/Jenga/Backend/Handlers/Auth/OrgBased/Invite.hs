@@ -11,6 +11,7 @@ import Jenga.Common.Schema
 import Jenga.Common.Auth
 
 import Rhyolite.Account
+import Jenga.Route
 import Database.PostgreSQL.Simple
 import Database.Beam.Postgres
 import Database.Beam.Schema
@@ -18,7 +19,6 @@ import Database.Beam.Query
 
 import Web.ClientSession as CS
 import Data.Pool
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Signed
 import Data.Bifunctor
@@ -26,15 +26,18 @@ import Data.Maybe
 import Text.Email.Validate as EmailValidate
 import qualified Data.Text as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 inviteHandler
-  :: forall db beR be frontendRoute m cfg x n.
-     ( MonadIO m
+  :: forall api db be frontendRoute es x n.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
@@ -42,15 +45,17 @@ inviteHandler
      , HasJsonNotifyTbl be SendEmailTask n
 
      )
-  => EmailValidate.EmailAddress
+  => Proxy api
+  -> EmailValidate.EmailAddress
   -> Id Account
   -> frontendRoute (Signed PasswordResetToken)
   -> (T.Text -> Link -> MkEmail x)  -- ^ email body
-  -> ReaderT cfg m (Either (BackendError InviteError) ())
-inviteHandler email inviter resetRoute mkBody = do
+  -> Eff es (Either (BackendError InviteError) ())
+inviteHandler proxy email inviter resetRoute mkBody = do
   (acctTbl :: PgTable Postgres db Account) <- asksTableM
   user <- (fmap.fmap) _account_email $ withDbEnv $ runSelectReturningOne $ lookup_ acctTbl inviter
-  signupRes <- userSignupHandler @db @beR
+  signupRes <- userSignupHandler @api @db
+    proxy
     email
     resetRoute
     (\link_ -> mkBody (fromMaybe "another user" user) link_)

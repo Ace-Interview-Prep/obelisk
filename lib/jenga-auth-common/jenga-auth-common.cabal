@@ -1,6 +1,6 @@
+cabal-version: 2.4
 name: jenga-auth-common
 version: 0.1
-cabal-version: >= 1.8
 build-type: Simple
 
 library
@@ -9,7 +9,6 @@ library
     buildable: False
   build-depends: base
                , aeson
-               , attoparsec
                , base64-bytestring
                , beam-core
                , bytestring
@@ -19,15 +18,13 @@ library
                , network-uri
                , mime-mail
                , mime-mail-orphans
-               , obelisk-route
+               , effectful-core
+               , jenga-route-servant
                , rhyolite-account-types
                , signed-data
                , stripe-core
-               , template-haskell
                , text
                , time
-               , transformers
-               , uuid-types
   if !impl(ghcjs)
      build-depends: unicode-transforms
 
@@ -43,6 +40,7 @@ library
         Jenga.Common.Stripe
         Jenga.Common.Log
 
+  default-language: Haskell2010
   ghc-options: -Wall -Werror -O -fno-show-valid-hole-fits
                -Wunused-packages
 

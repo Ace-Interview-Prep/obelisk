@@ -39,7 +39,8 @@ library
                , mmark
                , mmark-ext
                , network-uri
-               , obelisk-route
+               , effectful-core
+               , jenga-route-servant
                , obelisk-oauth-common
                , obelisk-oauth-backend
                , parsec
@@ -57,13 +58,13 @@ library
                , signed-data
                , signed-data-clientsession
                , snap
-               , obelisk-snap-extras
+               , jenga-snap-extras
                , stripe-core
                , stripe-haskell
                , text
                , these
                , time
-               , transformers
+               -- , transformers
                , vector
                , template-haskell
                , lamarckian

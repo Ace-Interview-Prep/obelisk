@@ -7,11 +7,6 @@ import Jenga.Backend.Utils.Email
 import Jenga.Backend.Utils.Log
 import Jenga.Backend.Utils.HasTable
 import Jenga.Backend.Utils.HasConfig
-import Control.Monad.Trans.Reader
--- import Backend.Config
--- import Backend.Utils.Email
--- import Backend.Utils.Log
--- import Common.Types (LogItem(..))
 import Reflex.Dom.Core
 import Database.Beam.Postgres (Connection, Postgres)
 import Data.Pool
@@ -20,21 +15,24 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import qualified Data.Text as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 
 withErrorReporting
-  :: forall db cfg be n e m a.
-     ( MonadIO m
-     , MonadCatch m
+  :: forall db es be n e a.
+     ( IOE :> es
+     , MonadCatch (Eff es)
      , Show e
      , SpecificError (BackendError e)
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db SendEmailTask
      , HasJengaTable Postgres db LogItemRow
      , HasJsonNotifyTbl be SendEmailTask n
      )
-  => ReaderT cfg m (Either (BackendError e) a)
-  -> ReaderT cfg m (Either (BackendError e) a)
+  => Eff es (Either (BackendError e) a)
+  -> Eff es (Either (BackendError e) a)
 withErrorReporting mE =  do
   --result :: (Either SomeException (Either (BackendError e) a)) <- try mE
   tryBE mE >>= reportWhenError @db
@@ -57,17 +55,17 @@ instance Loggable SomeError where
   renderLog (SomeError x) = x
 
 reportWhenError
-  :: forall db cfg be n e m a.
-     ( MonadIO m
+  :: forall db es be n e a.
+     ( IOE :> es
      , Show e
      , SpecificError (BackendError e)
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db SendEmailTask
      , HasJengaTable Postgres db LogItemRow
      , HasJsonNotifyTbl be SendEmailTask n
      )
-  => (Either (BackendError e) a) -> ReaderT cfg m (Either (BackendError e) a)
+  => (Either (BackendError e) a) -> Eff es (Either (BackendError e) a)
 reportWhenError = \case
   Right a -> pure $ Right a
   Left (BException s) -> do

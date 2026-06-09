@@ -13,22 +13,24 @@ import Rhyolite.Account
 import Database.Beam.Postgres
 import Database.Beam.Schema
 
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Pool
 import Data.Time.Clock
 import Data.Functor.Identity
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 isFreeTrialExpiredHandler
-  :: forall db cfg m.
-     ( MonadIO m
+  :: forall db es.
+     ( IOE :> es
      , Database Postgres db
      , HasJengaTable Postgres db FreeTrial
-     , HasConfig cfg FreeTrialInfo
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg FreeTrialInfo
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      )
   => Id Account
-  -> ReaderT cfg m (Either (BackendError ()) Bool)
+  -> Eff es (Either (BackendError ()) Bool)
 isFreeTrialExpiredHandler acctID = do
   freeTrialInfo <- asksM
   (freeTrialTbl :: PgTable Postgres db FreeTrial) <- asksTableM

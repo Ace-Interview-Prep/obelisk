@@ -9,6 +9,7 @@ import Jenga.Common.Auth
 import Jenga.Common.Schema
 
 import Rhyolite.Account
+import Jenga.Route
 import Network.Mail.Mime
 import Database.Beam
 import Database.Beam.Postgres
@@ -16,10 +17,12 @@ import Database.Beam.Postgres
 import Data.Pool
 import Web.ClientSession as CS
 import Data.Signed
-import Control.Monad.Trans.Reader
 import Data.Bifunctor
 import Text.Email.Validate as EmailValidate
 import qualified Data.Text.Encoding as T
+
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
 
 -- userSignup
 --   :: MonadIO m
@@ -37,29 +40,30 @@ import qualified Data.Text.Encoding as T
 
 --let mkBody = body <> "\n" <> link -- plaintext emali
 userSignupHandler
-  :: forall db beR be frontendRoute m cfg x n.
-     ( MonadIO m
+  :: forall api db be frontendRoute es x n.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl be SendEmailTask n
      )
-  => EmailValidate.EmailAddress -- ^ email address
+  => Proxy api
+  -> EmailValidate.EmailAddress -- ^ email address
   -> frontendRoute (Signed PasswordResetToken)
   -> (Link -> MkEmail x)  -- ^ email body
-  -> ReaderT cfg m (Either (BackendError UserSignupError) ())
-userSignupHandler email resetRoute mkBody = do
+  -> Eff es (Either (BackendError UserSignupError) ())
+userSignupHandler proxy email resetRoute mkBody = do
   case EmailValidate.emailAddress (EmailValidate.toByteString email) of
     Nothing -> pure . Left . BUserError $ BadSignupEmail
     Just emailParsed -> do
-      createNewAccount @db @beR (emailParsed) IsSelf resetRoute >>= \case
+      createNewAccount @api @db proxy (emailParsed) IsSelf resetRoute >>= \case
         Left e -> pure $ Left e
         Right link -> do
           let

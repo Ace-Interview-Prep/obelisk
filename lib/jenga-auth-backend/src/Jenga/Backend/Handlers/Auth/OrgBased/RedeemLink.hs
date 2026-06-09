@@ -10,6 +10,7 @@ import Jenga.Common.Auth
 import Jenga.Common.Schema
 
 import Rhyolite.Account
+import Jenga.Route
 import Database.Beam.Postgres
 import Database.Beam.Schema
 
@@ -17,20 +18,22 @@ import Web.ClientSession as CS
 import Data.Signed
 import Data.Pool
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
 import Text.Email.Validate
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 redeemLinkHandler
-  :: forall db beR cfg frontendRoute be m x n.
-     ( MonadIO m
+  :: forall api db frontendRoute be es x n.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg BaseURL
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
      , HasJengaTable Postgres db InviteLink
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
@@ -38,11 +41,12 @@ redeemLinkHandler
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl be SendEmailTask n
      )
-  => (T.Text, Email)
+  => Proxy api
+  -> (T.Text, Email)
   -> frontendRoute (Signed PasswordResetToken)
   -> (Link -> MkEmail x)
-  -> ReaderT cfg m (Either (BackendError RedeemLinkError) ())
-redeemLinkHandler (codeLink, Email email) resetRoute mkEmail = do
+  -> Eff es (Either (BackendError RedeemLinkError) ())
+redeemLinkHandler proxy (codeLink, Email email) resetRoute mkEmail = do
   (inviteTbl :: PgTable Postgres db InviteLink) <- asksTableM
 
   withDbEnv (getInviteLinkByCode inviteTbl codeLink) >>= \case
@@ -53,7 +57,7 @@ redeemLinkHandler (codeLink, Email email) resetRoute mkEmail = do
           case validate . T.encodeUtf8 $ email of
             Left _ -> pure $ Left . BUserError $ InvalidEmail_RedeemLink
             Right email' -> do
-              createNewAccountWithSetupEmail @db @beR email' (IsGroupUser email' orgName) resetRoute mkEmail >>= \case
+              createNewAccountWithSetupEmail @api @db proxy email' (IsGroupUser email' orgName) resetRoute mkEmail >>= \case
                 Left e -> pure $ Left $ RedeemLink_Signup <$> e
                 Right () -> do
                   case mNLeft of

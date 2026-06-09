@@ -39,15 +39,17 @@ library
                , jenga-auth-common
                , lens
                , network-uri
-               , obelisk-executable-config-lookup
-               , obelisk-frontend
+               , jenga-executable-config-lookup
+               , jenga-frontend
                , staticAssets
                , obelisk-oauth-common
-               , obelisk-route
+               , effectful-core
+               , jenga-route-servant
                , parsec
                , random
                , reflex
                , reflex-classhss
+               , reflex-effectful
                , rhyolite-account-types
                , rhyolite-common
                , rhyolite-frontend
@@ -56,7 +58,6 @@ library
                , templates
                , text
                , time
-               , transformers
                , vessel
                , ref-tf
                , reflex-dom-core

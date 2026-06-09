@@ -20,19 +20,21 @@ import Data.Pool
 import Web.ClientSession as CS
 import Data.Signed.ClientSession
 import Data.Signed
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 
 resetPasswordHandler
-  :: forall db cfg x m n.
-     ( MonadIO m
+  :: forall db es x n.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db SendEmailTask
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db Account
@@ -40,7 +42,7 @@ resetPasswordHandler
      )
   => (Signed PasswordResetToken, T.Text)
   -> (UserType -> PasswordState -> MkEmail x)
-  -> ReaderT cfg m (Either (BackendError ResetPasswordError) (Signed (Id Account), UserType))
+  -> Eff es (Either (BackendError ResetPasswordError) (Signed (Id Account), UserType))
 resetPasswordHandler (signedToken, newPass) chooseWelcomeLetter = do
   (acctsTbl :: PgTable Postgres db Account) <- asksTableM
   (uTypeTbl :: PgTable Postgres db UserTypeTable) <- asksTableM

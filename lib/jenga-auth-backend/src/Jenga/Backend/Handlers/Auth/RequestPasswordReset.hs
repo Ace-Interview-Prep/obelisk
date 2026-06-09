@@ -16,7 +16,7 @@ import Jenga.Common.Schema
 
 import Rhyolite.Backend.Account
 import Rhyolite.Account
-import Obelisk.Route
+import Jenga.Route
 import Reflex.Dom.Core
 import Database.Beam.Schema
 import Database.Beam.Postgres (Postgres, Connection)
@@ -25,28 +25,31 @@ import Web.ClientSession as CS
 import Network.Mail.Mime
 import Data.Pool
 import Data.Signed
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import qualified Text.Email.Validate as EmailValidate
 import qualified Data.Text.Encoding as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 requestPasswordResetHandler
-  :: forall db beR n cfg m frontendRoute.
-     ( MonadIO m
+  :: forall api db n es frontendRoute.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg CS.Key
-     , HasConfig cfg BaseURL
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl Postgres SendEmailTask n
      )
-  => frontendRoute (Signed PasswordResetToken)
+  => Proxy api
+  -> frontendRoute (Signed PasswordResetToken)
   -> Email
-  -> ReaderT cfg m (Either (BackendError RequestPasswordResetError) ())
-requestPasswordResetHandler resetRoute (Email rawEmail) = do
+  -> Eff es (Either (BackendError RequestPasswordResetError) ())
+requestPasswordResetHandler proxy resetRoute (Email rawEmail) = do
   csk <- asksM -- Cfg _clientSessionKey
 
   (acctTbl :: PgTable Postgres db Account) <- asksTableM
@@ -63,7 +66,7 @@ requestPasswordResetHandler resetRoute (Email rawEmail) = do
             Nothing -> pure . Left . BCritical $ FailedMakeNonce
             Just noncense -> do
               token <- withDbEnv $ passwordResetToken csk aid noncense
-              resetLink <- renderFullRouteFE @beR $ resetRoute :/ token
+              resetLink <- renderFullRouteFE proxy $ resetRoute :/ token
               let
                 to = Address
                      { addressName = Nothing

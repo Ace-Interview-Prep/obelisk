@@ -22,7 +22,6 @@ import Network.Mail.Mime
 import Control.Exception as CE
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
 import Data.Functor.Identity
 import Data.Constraint.Extras
 import Data.Constraint.Forall
@@ -34,6 +33,9 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import qualified Data.ByteString.Lazy as LBS
+
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
 
 newtype AdminEmail = AdminEmail { getAdminEmail :: Address }
 
@@ -66,16 +68,16 @@ sendEmailIfNotLocal cfg mail = do
         Right (Right ()) -> pure $ Right ()
 
 sendEmailIfNotLocalOrUnsubscribed
-  :: forall db m cfg .
-     ( MonadIO m
+  :: forall db es .
+     ( IOE :> es
      , Database Postgres db
      , HasJengaTable Postgres db Unsubscribe
-     , HasConfig cfg BaseURL
-     , HasConfig cfg EmailConfig
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg EmailConfig
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      )
   => Mail
-  -> ReaderT cfg m (Either T.Text ())
+  -> Eff es (Either T.Text ())
 sendEmailIfNotLocalOrUnsubscribed mail = do
   cfg <- asksM
   (unsubbed :: PgTable Postgres db Unsubscribe) <- asksTableM
@@ -128,35 +130,35 @@ instance HasSqlValueSyntax PgValueSyntax Mail where
   sqlValueSyntax mail = sqlValueSyntax $ PgJSON mail
 
 
-type EmailM cfg db m n be =
-  ( HasConfig cfg AdminEmail
-  , HasConfig cfg (Pool Connection)
+type EmailM es db n be =
+  ( Reader cfg :> es, HasConfig cfg AdminEmail
+  , Reader cfg :> es, HasConfig cfg (Pool Connection)
+  , IOE :> es
   , HasJengaTable Postgres db SendEmailTask
   , HasJsonNotifyTbl be SendEmailTask n
   )
 
 
 newMkEmailHtml
-  :: forall db be m cfg n x.
-     ( MonadIO m
-     , EmailM cfg db m n be
+  :: forall db be es n x.
+     ( EmailM es db n be
      )
   => [Address]
   -> MkEmail x
-  -> ReaderT cfg m (Either T.Text ())
+  -> Eff es (Either T.Text ())
 newMkEmailHtml toPlural mkEmail = do --subject widget = do
   newEmailHtml @db toPlural (_mkEmail_subject mkEmail) (_mkEmail_body mkEmail)
 
 buildNewEmailHtml
-  :: forall m cfg x.
-     ( MonadIO m
-     -- , EmailM cfg db m n be
-     , HasConfig cfg AdminEmail
+  :: forall es x.
+     ( IOE :> es
+     -- , EmailM es db n be
+     , Reader cfg :> es, HasConfig cfg AdminEmail
      )
   => [Address]
   -> T.Text
   -> Rfx.StaticWidget x ()
-  -> ReaderT cfg m [Mail]
+  -> Eff es [Mail]
 buildNewEmailHtml toPlural subject widget = do
   body <- liftIO $ fmap snd $ Rfx.renderStatic widget
   from <- getAdminEmail <$> asksM -- toAddress <$> asksCfg _emailSendConfig
@@ -165,16 +167,15 @@ buildNewEmailHtml toPlural subject widget = do
   --pure $ Right ()
 
 
--- | TODO(galen) can we run ReaderT cfg in the context of StaticWidget?
+-- | TODO(galen) can we run Eff es in the context of StaticWidget?
 newEmailHtml
-  :: forall db be m cfg n x.
-     ( MonadIO m
-     , EmailM cfg db m n be
+  :: forall db be es n x.
+     ( EmailM es db n be
      )
   => [Address]
   -> T.Text
   -> Rfx.StaticWidget x ()
-  -> ReaderT cfg m (Either T.Text ())
+  -> Eff es (Either T.Text ())
 newEmailHtml toPlural subject widget = do
   body <- liftIO $ fmap snd $ Rfx.renderStatic widget
   from <- getAdminEmail <$> asksM -- toAddress <$> asksCfg _emailSendConfig
@@ -193,10 +194,10 @@ newEmailHtml toPlural subject widget = do
   pure $ Right ()
 
 newHTemplateEmailHtml
-  :: forall db m cfg k a r x be n.
-     ( MonadIO m
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg AdminEmail
+  :: forall db es k a r x be n.
+     ( IOE :> es
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg AdminEmail
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl be SendEmailTask n
      )
@@ -204,7 +205,7 @@ newHTemplateEmailHtml
   -> T.Text
   -> HTemplateVars k a
   -> (HTemplateRefs k a -> StaticWidget' r x ())
-  -> ReaderT cfg m (Either T.Text ())
+  -> Eff es (Either T.Text ())
 newHTemplateEmailHtml toPlural subject mappy mkDom = do
   --renderStaticTemplate' mappy $ widget
   body <- liftIO $ runStaticHTemplateWidget mappy mkDom
@@ -226,26 +227,26 @@ newHTemplateEmailHtml toPlural subject mappy mkDom = do
   pure $ Right ()
 
 newAdminEmail
-  :: forall db m cfg be n.
-     ( MonadIO m
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg (Pool Connection)
+  :: forall db es be n.
+     ( IOE :> es
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl be SendEmailTask n
      --, Has (ComposeC ToJSON Identity) n
      )
   => T.Text
   -> T.Text
-  -> ReaderT cfg m ()
+  -> Eff es ()
 newAdminEmail subject body = do
   from <- getAdminEmail <$> asksM
   newEmail @db @n from subject body
 
 newEmail
-  :: forall db n cfg be m.
-     ( MonadIO m
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg (Pool Connection)
+  :: forall db n es be.
+     ( IOE :> es
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db SendEmailTask
      --, Has (ComposeC ToJSON Identity) n
      , HasJsonNotifyTbl be SendEmailTask n
@@ -253,7 +254,7 @@ newEmail
   => Address
   -> T.Text
   -> T.Text
-  -> ReaderT cfg m ()
+  -> Eff es ()
 newEmail to subject body = do
   from <- getAdminEmail <$> asksM -- toAddress <$> asksCfg _emailSendConfig
   let mail = simpleMail' to from subject . LT.fromStrict $ body

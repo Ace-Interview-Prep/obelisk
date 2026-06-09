@@ -13,8 +13,8 @@ import Jenga.Common.Auth
 import Database.Beam.Postgres
 import Database.Beam.Schema
 import Rhyolite.Account
+import Jenga.Route
 
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Signed
 import Data.Pool
@@ -23,36 +23,40 @@ import Text.Email.Validate
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 
 
 newFreeTrialHandler
-  :: forall db beR cfg be m n frontendRoute x.
-     ( MonadIO m
-     --, EmailM cfg db m n be
+  :: forall api db be es n frontendRoute x.
+     ( IOE :> es
+     --, EmailM es db n be
      , HasJsonNotifyTbl be SendEmailTask n
      , Database Postgres db
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
      , HasJengaTable Postgres db SendEmailTask
      , HasJengaTable Postgres db FreeTrial
      )
-  => (Maybe T.Text, Email)
+  => Proxy api
+  -> (Maybe T.Text, Email)
   -> frontendRoute (Signed PasswordResetToken)
   -> (Link -> MkEmail x)
-  -> ReaderT cfg m (Either (BackendError FreeTrialError) ())
-newFreeTrialHandler (mCode,email) resetRoute mkEmail = do
+  -> Eff es (Either (BackendError FreeTrialError) ())
+newFreeTrialHandler proxy (mCode,email) resetRoute mkEmail = do
   (freeTrialTbl :: PgTable Postgres db FreeTrial) <- asksTableM
   (acctsTbl :: PgTable Postgres db Account) <- asksTableM
   case validate . T.encodeUtf8 . unEmail $ email of
     Left _ -> pure $ Left . BUserError $ InvalidEmail_FreeTrial
     Right validatedEmail -> do
-      createNewAccountWithSetupEmail @db @beR validatedEmail IsSelf resetRoute mkEmail >>= \case
+      createNewAccountWithSetupEmail @api @db proxy validatedEmail IsSelf resetRoute mkEmail >>= \case
         Left e -> pure $ Left $ FreeTrial_Signup <$> e
         Right () -> do
           (withDbEnv $ getUserByEmail acctsTbl $ unEmail email) >>= \case

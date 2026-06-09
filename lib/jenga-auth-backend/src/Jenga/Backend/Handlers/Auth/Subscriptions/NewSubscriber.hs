@@ -16,7 +16,7 @@ import Rhyolite.Account as Rhy
 import Rhyolite.Backend.Account as RhyB
 import Database.Beam.Schema
 import Database.Beam.Postgres
-import Obelisk.Route
+import Jenga.Route
 import qualified Reflex.Dom.Core as Rfx
 import Data.Signed
 
@@ -28,27 +28,27 @@ import Web.Stripe.Token as S
 import Web.Stripe.Plan as S
 import Web.ClientSession as CS
 
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Pool
 import Data.Aeson (FromJSON)
 import Data.Time.Clock (nominalDay, addUTCTime, getCurrentTime)
 import qualified Data.Text as T
 
-newtype StripeCode = StripeCode T.Text
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
 
 -- Change to Confirm Subscription
 newSubscriberHandler
-  :: forall db beR cfg be frontendRoute m n.
-     ( MonadIO m
+  :: forall api db be frontendRoute es n.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg StripeConfig
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg Plans
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg StripeConfig
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg Plans
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
      , HasJengaTable Postgres db Rhy.Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db FreeTrial
@@ -57,11 +57,12 @@ newSubscriberHandler
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl be SendEmailTask n
      )
-  => Id Rhy.Account
+  => Proxy api
+  -> Id Rhy.Account
   -> PaymentFormPrivate
   -> frontendRoute (Signed PasswordResetToken)
-  -> ReaderT cfg m (Either (BackendError SubscribeError) Bool)
-newSubscriberHandler acctID form resetRoute = do
+  -> Eff es (Either (BackendError SubscribeError) Bool)
+newSubscriberHandler proxy acctID form resetRoute = do
   stripeConfig <- asksM --  _stripeConfig
   (acctTbl :: PgTable Postgres db Rhy.Account) <- asksTableM
   (uTypeTbl :: PgTable Postgres db UserTypeTable) <- asksTableM
@@ -150,7 +151,7 @@ newSubscriberHandler acctID form resetRoute = do
                                   pure . Left . BCritical . StripeGenError $ subscriptionError
                                 Right sub -> do
                                   withDbEnv $ putNewStripeInfo stripeTbl aid (customerId customer) (subscriptionId sub)
-                                  link <- renderFullRouteFE @beR $ resetRoute :/ authToken
+                                  link <- renderFullRouteFE proxy $ resetRoute :/ authToken
                                   let
                                     to = Address
                                       { addressName = Nothing

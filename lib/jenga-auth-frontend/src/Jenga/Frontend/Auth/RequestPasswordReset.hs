@@ -1,17 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Jenga.Frontend.Auth.RequestPasswordReset where --ResetPasswordAce where
+module Jenga.Frontend.Auth.RequestPasswordReset where
 
 import Templates.Types
 import Jenga.Common.Errors
 import Jenga.Common.Auth
 
-import Rhyolite.Api (ApiRequest(..))
-import Reflex.Dom.Core
+import Reflex (Reflex, Event, Dynamic, current, tag, leftmost, ffor, fanEither, (<$))
 
-import Control.Monad.Fix
-import Data.Functor.Identity
 import qualified Data.Text as T
+
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Hold (Hold, holdDyn)
+import Reflex.Effectful.Effect.Dom (Dom)
+import Reflex.Effectful.Effect.PostBuild (PostBuild)
 
 newtype EmailForPasswordResetConfig t = EmailForPasswordResetConfig
   { _emailForPasswordResetConfig_errors :: Dynamic t (Maybe T.Text)
@@ -23,65 +25,18 @@ data EmailForPasswordResetData t m = EmailForPasswordResetData
   , _emailForPasswordReset_submit :: Event t ()
   }
 
--- primaryButton :: DomBuilder t m => T.Text -> m (Event t ())
--- primaryButton buttonText = do
---   (e, _) <- elClass' "button" classes $ text buttonText
---   pure $ domEvent Click e
---   where
---     classes =
---       "focus:outline-none w-full p-4 mt-16 shadow-button bg-primary \
---       \ font-facit font-bold text-white text-body text-center rounded \
---       \ hover:bg-primary-rich active:bg-primary-desaturated \
---       \ focus:ring-4 ring-primary ring-opacity-50"
-
--- requestPasswordReset :: ( DomBuilder t m
---                         , PostBuild t m
---                         , MonadFix m
---                         , MonadHold t m
---                         , Request m ~ ApiRequest token PublicRequest PrivateRequest
---                         , Response m ~ Identity
---                         , Requester t m
---                         ) => m ()
--- requestPasswordReset = requestPasswordReset_FRP
-
--- requestPasswordReset_TMPL :: ( DomBuilder t m
---                              , PostBuild t m
---                              , MonadFix m
---                              , MonadHold t m
---                              )
---                           => EmailForPasswordResetConfig t
---                           -> m (EmailForPasswordResetData t m)
--- requestPasswordReset_TMPL cfg = do
---   authFormTemplate hectorRecommendation $ do
---     authFormTitle "Recover Password"
---     email <- authFormRow $ do
---       authFormLabel "Email"
---       authFormTextInput "email" "Enter your email"
---     emailConfirm <- authFormRow $ do
---       authFormLabel "Confirm your email"
---       authFormTextInput "email" "you@example.com"
-
---     maybeDisplay errorMessage $ _emailForPasswordResetConfig_errors cfg
---     submit <- primaryButton "Reset Password"
-
---     pure $ EmailForPasswordResetData email emailConfirm submit
-
 requestPasswordReset_FRP
-  :: ( DomBuilder t m
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     , Request m ~ ApiRequest token publicRequest privateRequest
-     , Response m ~ Identity
-     , Requester t m
+  :: forall req rsp t es.
+     ( Dom t :> es
+     , PostBuild t :> es
+     , Hold t :> es
+     , Reflex t
      )
-  => (Email -> ApiRequest token publicRequest privateRequest
-      (Either (BackendError RequestPasswordResetError) ())
-     )
-  -> (EmailForPasswordResetData t m)
-  -> m (EmailForPasswordResetConfig t)
-requestPasswordReset_FRP mkAPI (EmailForPasswordResetData email' eConfirm' submit) = mdo
-  --EmailForPasswordResetData email' eConfirm' submit <- requestPasswordReset_TMPL $ EmailForPasswordResetConfig errors
+  => (Email -> req)
+  -> (Event t req -> Eff es (Event t rsp))
+  -> (EmailForPasswordResetData t (Eff es))
+  -> Eff es (EmailForPasswordResetConfig t)
+requestPasswordReset_FRP mkAPI sendRequest (EmailForPasswordResetData email' eConfirm' submit) = do
   let email = value email'
   let eConfirm = value eConfirm'
   let
@@ -92,8 +47,8 @@ requestPasswordReset_FRP mkAPI (EmailForPasswordResetData email' eConfirm' submi
         )
     emails_agree = fmap f $ (,) <$> email <*> eConfirm
   let (bad, good) = fanEither (tag (current emails_agree) submit)
-  res <- requestingIdentity $ ffor good $ \goodEmail -> mkAPI $ Email goodEmail
-  let (apiError, goodResponse) = fanEither res
+  res <- sendRequest $ ffor good $ \goodEmail -> mkAPI $ Email goodEmail
+  let (apiError, goodResponse) = fanEither (castResponse res)
   let errorsEv = Just <$> leftmost
         [ bad
         , showUser <$> apiError
@@ -101,3 +56,6 @@ requestPasswordReset_FRP mkAPI (EmailForPasswordResetData email' eConfirm' submi
         ]
   errors <- holdDyn Nothing errorsEv
   pure $ EmailForPasswordResetConfig errors
+  where
+    value = undefined -- TODO: InputEl accessor
+    castResponse = undefined -- TODO: cast response type

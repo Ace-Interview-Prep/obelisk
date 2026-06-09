@@ -12,39 +12,43 @@ import Network.Mail.Mime
 import Database.Beam
 import Database.Beam.Postgres
 import Rhyolite.Account
+import Jenga.Route
 
 import Web.ClientSession as CS
 import Data.Pool
 import Data.Signed
-import Control.Monad.Trans.Reader
 import Text.Email.Validate
 import qualified Data.Text.Encoding as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 adminSignupHandler
-  :: forall db beR frontendRoute cfg m x n.
-     ( MonadIO m
+  :: forall api db frontendRoute es x n.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg CS.Key
-     , HasConfig cfg CompanySignupCode
-     , HasConfig cfg BaseURL
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg CompanySignupCode
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
      , HasJengaTable Postgres db SendEmailTask
      , HasJsonNotifyTbl Postgres SendEmailTask n
      )
-  => NewCompanyEmail
+  => Proxy api
+  -> NewCompanyEmail
   -> frontendRoute (Signed PasswordResetToken)
   -> (Link -> MkEmail x)
-  -> ReaderT cfg m (Either (BackendError AdminSignupError) ())
-adminSignupHandler (NewCompanyEmail email orgName code) resetRoute mkEmail = do
+  -> Eff es (Either (BackendError AdminSignupError) ())
+adminSignupHandler proxy (NewCompanyEmail email orgName code) resetRoute mkEmail = do
   matchesCompanyCodeEnv code >>= \case
     False -> pure $ Left . BUserError $ InvalidAdminCode
     True -> do
-      createNewAccount @db @beR email (IsCompany orgName) resetRoute >>= \case
+      createNewAccount @api @db proxy email (IsCompany orgName) resetRoute >>= \case
         Left beErr -> pure $ Left $ fmap AdminSignupError $ beErr
         Right link -> do
           let

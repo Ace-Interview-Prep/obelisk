@@ -2,31 +2,30 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 
 
 module Jenga.Frontend.Auth.CompanySignup where
 
---import Jenga.Frontend.MkTmpl
 import Jenga.Common.Auth
 import Templates.Partials.Checkbox
 import Templates.Types
 import Jenga.Common.Errors
 
-import Rhyolite.Api (ApiRequest(..))
-import Obelisk.Route.Frontend
-import Reflex
-import Reflex.Dom.Core hiding (checkbox, Checkbox(..), CheckboxConfig(..))
+import Jenga.Route.Frontend (SetRoute, RouteToUrl, Routed, askRoute)
+import Reflex (Reflex, Event, Dynamic, current, tag, leftmost, ffor, fanEither, (<$))
 
 import Control.Monad (join, forM_)
-import Control.Monad.Fix
 import qualified Text.Email.Validate as EmailValidate
 import qualified Data.Map as Map
-import Data.Functor.Identity
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
+
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Hold (Hold, holdDyn)
+import Reflex.Effectful.Effect.Dom (Dom, elClass, text)
+import Reflex.Effectful.Effect.PostBuild (PostBuild)
+import Reflex.Effectful.Effect.Prerender (Prerender)
 
 
 data SignupConfig t = SignupConfig
@@ -47,26 +46,19 @@ data SignupData t m = SignupData
 -- | TODO(anyone): It would be really cool to populate forms with info they've already entered so that they can move forward faste
 -- | we could do this through query params
 newCompanySignup_FRP
-  :: ( DomBuilder t m
-     , SetRoute t (R frontendRoute) m
-     , RouteToUrl (R frontendRoute) m
-     , Prerender t m
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     , Routed t (Map.Map T.Text (Maybe T.Text)) m
-     , Requester t m
-     , Request m ~ ApiRequest token publicRequest privateRequest
-     , Response m ~ Identity
+  :: forall req rsp t es.
+     ( Dom t :> es
+     , Hold t :> es
+     , PostBuild t :> es
+     , Prerender t :> es
+     , Routed t (Map.Map T.Text (Maybe T.Text)) :> es
+     , Reflex t
      )
-  => (NewCompanyEmail -> ApiRequest token publicRequest privateRequest
-      (Either (BackendError AdminSignupError) ())
-     )
-  --forall app. NewCompanyEmail -> PublicApi app (Either e a)
-  -> (SignupData t m)
-  -> m (SignupConfig t) --(Event t ()) --()
-newCompanySignup_FRP mkAPI (SignupData email' eConfirm' orgName' agree' submit) = mdo
-  --Signup email' eConfirm' orgName' agree' submit <- newCompanySignup_TMPL $ SignupConfig errors
+  => (NewCompanyEmail -> req)
+  -> (Event t req -> Eff es (Event t rsp))
+  -> (SignupData t (Eff es))
+  -> Eff es (SignupConfig t)
+newCompanySignup_FRP mkAPI sendRequest (SignupData email' eConfirm' orgName' agree' submit) = do
   queryParams :: Dynamic t (Map.Map T.Text (Maybe T.Text)) <- askRoute
   let code = join . Map.lookup "code" <$> queryParams
   let email = value email'
@@ -91,9 +83,9 @@ newCompanySignup_FRP mkAPI (SignupData email' eConfirm' orgName' agree' submit) 
                )
     valid = fmap validate $ (,,,,) <$> email <*> eConfirm <*> orgName <*> agree <*> code
   let (bad, good') = fanEither (tag (current valid) submit)
-  let request = ffor good' $ mkAPI -- ApiRequest_Public . PublicRequest_CompanySignup
-  response <- requestingIdentity request
-  let (errRes, goodResponse) = fanEither response
+  let request = ffor good' mkAPI
+  response <- sendRequest request
+  let (errRes, goodResponse) = fanEither (castResponse response)
   let errorsEv = Just <$> leftmost
         [ bad
         , showUser . Req . Request_ErrorAPI <$> errRes
@@ -101,9 +93,12 @@ newCompanySignup_FRP mkAPI (SignupData email' eConfirm' orgName' agree' submit) 
         ]
   errors <- holdDyn Nothing errorsEv
 
-  pure $ SignupConfig errors goodResponse -- (signupgoodResponse
+  pure $ SignupConfig errors goodResponse
+  where
+    value = undefined -- TODO: InputEl accessor
+    castResponse = undefined -- TODO: cast response type
 
-seeTerms :: DomBuilder t m => m ()
+seeTerms :: (Dom t :> es, Reflex t) => Eff es ()
 seeTerms = do
   elClass "div" "bg-gray-100 flex items-center justify-center" $ do
     elClass "div" "bg-white p-8 rounded-3xl w-full overflow-y-auto h-[50vh]" $ do

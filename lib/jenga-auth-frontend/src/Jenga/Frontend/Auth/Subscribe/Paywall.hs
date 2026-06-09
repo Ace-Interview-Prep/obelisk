@@ -2,24 +2,22 @@
 
 module Jenga.Frontend.Auth.Subscribe.Paywall where
 
---import Common.Route
-
 import Jenga.Common.Auth
 import Jenga.Common.Errors
 import Jenga.Common.Stripe
-import Obelisk.Route.Frontend
-import Reflex.Dom.Core
+import Jenga.Route.Frontend (SetRoute, setRoute)
+import Reflex (Reflex, Event, Dynamic, current, tag, leftmost, ffor, fanEither, ffilter, (<$))
 
---import Common.Request
-import Rhyolite.Api (ApiRequest(..))
-import Control.Monad.IO.Class
-import Data.Functor.Identity
 import qualified Data.Text as T
 import Text.Read
 
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Hold (Hold, holdDyn)
+import Reflex.Effectful.Effect.Dom (Dom)
+import Reflex.Effectful.Effect.PostBuild (PostBuild, getPostBuild)
+import Reflex.Effectful.Effect.PerformEvent (PerformEvent)
+import Reflex.Effectful.Effect.TriggerEvent (TriggerEvent, delay)
 
-
---import Frontend.Auth.Subscribe.StartFreeTrial (freeTrialShell)
 
 data PaywallData t = PaywallData
   { _paywallData_firstName :: Dynamic t T.Text
@@ -37,30 +35,25 @@ data PaywallConfig t = PaywallConfig
   , _paywallConfig_userMessage :: Dynamic t T.Text
   , _paywallConfig_errors :: Event t FrontendError
   }
---(Dynamic t (Maybe T.Text), Dynamic t T.Text)
+
 paywall_FRP
-  :: ( Requester t m
-     , Request m ~ ApiRequest () publicRequest privateRequest
-     , Response m ~ Identity
-     --, HeaderConstraints t m
-     , PostBuild t m
-     , MonadHold t m
-     , PerformEvent t m
-     , TriggerEvent t m
-     , MonadIO (Performable m)
-     , SetRoute t (R frontendRoute) m
-     , Response m ~ Identity
+  :: forall frontendR t es.
+     ( PostBuild t :> es
+     , Hold t :> es
+     , PerformEvent t :> es
+     , TriggerEvent t :> es
+     , SetRoute t frontendR :> es
+     , Reflex t
      )
-  => R frontendRoute
-  -> ApiRequest () publicRequest privateRequest (Either (BackendError NoFreeTrialCode) (T.Text, Maybe T.Text))
-  -> (PaymentFormPrivate -> ApiRequest () publicRequest privateRequest (Either (BackendError SubscribeError) Bool))
+  => frontendR
+  -> (Event t () -> Eff es (Event t (Either (BackendError NoFreeTrialCode) (T.Text, Maybe T.Text))))
+  -> (Event t PaymentFormPrivate -> Eff es (Event t (Either (BackendError SubscribeError) Bool)))
   -> PaywallData t
-  -> m (PaywallConfig t) --(Event t FrontendError)
-paywall_FRP loginRoute mkAPI_hasFreeTrialCode mkAPI_upgradeToPaid (PaywallData _firstName _lastName cardNumber expiryMonth expiryYear cvc click) = mdo
-  -- <- paywall_TMPL (code, userMessage)
+  -> Eff es (PaywallConfig t)
+paywall_FRP loginRoute sendHasFreeTrialCode sendUpgradeToPaid (PaywallData _firstName _lastName cardNumber expiryMonth expiryYear cvc click) = do
   pb <- getPostBuild
-  let reqCode = ffor pb $ \_ -> mkAPI_hasFreeTrialCode --ApiRequest_Private () $ PrivateRequest_AskFreeTrialCode
-  (errFT, email_code :: Event t (T.Text, Maybe T.Text)) <- fmap fanEither $ ( requestingIdentity reqCode  )
+  codeResponse <- sendHasFreeTrialCode pb
+  let (errFT, email_code :: Event t (T.Text, Maybe T.Text)) = fanEither codeResponse
 
   let code' = snd <$> email_code
   code <- holdDyn Nothing code'
@@ -89,8 +82,8 @@ paywall_FRP loginRoute mkAPI_hasFreeTrialCode mkAPI_upgradeToPaid (PaywallData _
   -- we should (maybe) sign this for security like the tokens (may be nicer to do as fields of payment form)
   -- it may also be redundant since the key would need to be shared (i think)
   let (err, paymentFormGood) = fanEither $ validate <$> validEmailAndNumericals
-  let req = ffor paymentFormGood $ mkAPI_upgradeToPaid -- \pf -> ApiRequest_Private () $ PrivateRequest_UpgradeToPaid pf
-  (errRes, good) <- fmap fanEither $ ( requestingIdentity req  )
+  upgradeResponse <- sendUpgradeToPaid paymentFormGood
+  let (errRes, good) = fanEither upgradeResponse
 
   let
     onGood = ffor good $ \case
@@ -107,6 +100,5 @@ paywall_FRP loginRoute mkAPI_hasFreeTrialCode mkAPI_upgradeToPaid (PaywallData _
   userMessage <- holdDyn "" $ leftmost [ showUser <$> errorEv, paymentFormGood', onGood ]
   redirect <- delay 2 (ffilter (== False) good)
   setRoute $ loginRoute <$ (ffilter (== False) redirect)
-  --pure errorEv
 
-  pure $ PaywallConfig code userMessage errorEv --  paywall_TMPL (code, userMessage)
+  pure $ PaywallConfig code userMessage errorEv

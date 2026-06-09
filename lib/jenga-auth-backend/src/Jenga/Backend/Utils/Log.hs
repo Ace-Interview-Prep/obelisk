@@ -10,37 +10,39 @@ import Rhyolite.DB.Beam
 import Database.Beam.Query
 import Database.Beam.Postgres
 
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Control.Exception
 import Data.Pool
 import qualified Data.Text as T
 import Prelude hiding (log)
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 
 reportError
-  :: forall db cfg be n a m.
-    ( MonadIO m
+  :: forall db es be n a.
+    ( IOE :> es
     , Show a
     , HasJengaTable Postgres db SendEmailTask
-    , HasConfig cfg AdminEmail
-    , HasConfig cfg (Pool Connection)
+    , Reader cfg :> es, HasConfig cfg AdminEmail
+    , Reader cfg :> es, HasConfig cfg (Pool Connection)
     , HasJsonNotifyTbl be SendEmailTask n
     )
   => a
-  -> ReaderT cfg m ()
+  -> Eff es ()
 reportError = newAdminEmail @db "Error on production" . T.pack . show
 
 reportOnError
-  :: forall db cfg be n m a b.
-    ( MonadIO m
+  :: forall db es be n a b.
+    ( IOE :> es
     , Show a
     , HasJengaTable Postgres db SendEmailTask
-    , HasConfig cfg AdminEmail
-    , HasConfig cfg (Pool Connection)
+    , Reader cfg :> es, HasConfig cfg AdminEmail
+    , Reader cfg :> es, HasConfig cfg (Pool Connection)
     , HasJsonNotifyTbl be SendEmailTask n
     )
-  => Either a b -> ReaderT cfg m ()
+  => Either a b -> Eff es ()
 reportOnError = \case
   Left err -> reportError @db err
   Right _ -> pure ()
@@ -49,15 +51,15 @@ catchToss :: IO a -> IO ()
 catchToss m = catch (m >> pure ()) (\(_ :: IOException) -> pure ())
 
 reportLog
-  :: forall db cfg m log.
+  :: forall db es log.
      ( Loggable log
-     , MonadIO m
+     , IOE :> es
      , HasJengaTable Postgres db LogItemRow
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      )
   => Bool
   -> log
-  -> ReaderT cfg m ()
+  -> Eff es ()
 reportLog isUrgent item = do
   (logTbl :: PgTable Postgres db LogItemRow) <- asksTableM
   withDbEnv $ do

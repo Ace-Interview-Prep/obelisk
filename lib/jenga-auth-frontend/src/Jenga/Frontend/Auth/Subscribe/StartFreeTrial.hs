@@ -2,13 +2,11 @@
 
 module Jenga.Frontend.Auth.Subscribe.StartFreeTrial  where
 
-
--- import Frontend.Types
 import Jenga.Common.Auth
 import Jenga.Common.Errors
 
-import Obelisk.Route.Frontend
-import Reflex.Dom.Core
+import Jenga.Route.Frontend (Routed, askRoute)
+import Reflex (Reflex, Event, Dynamic, current, tag, attach, leftmost, ffor, fanEither, (<$))
 
 import qualified Text.Email.Validate as EmailValidate
 import Control.Monad (join)
@@ -18,9 +16,12 @@ import qualified Data.Text.Encoding as T
 import Data.Either (isRight)
 
 import Templates.Types
--- import Common.Request
-import Rhyolite.Api (ApiRequest(..))
-import Data.Functor.Identity
+
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Hold (Hold, holdDyn)
+import Reflex.Effectful.Effect.Dom (Dom)
+import Reflex.Effectful.Effect.PostBuild (PostBuild)
+import Reflex.Effectful.Effect.Prerender (Prerender)
 
 --(email, confirm, clickSubscribe) <- startFreeTrial_TMPL (code, errors)
 data StartFreeTrialData t = StartFreeTrialData
@@ -36,17 +37,19 @@ data StartFreeTrialConfig t = StartFreeTrialConfig
   }
 
 startFreeTrial_FRP
-  :: ( Routed t (Map.Map T.Text (Maybe T.Text)) m
-     , Requester t m
-     , Request m ~ ApiRequest token publicRequest privateRequest
-     , Response m ~ Identity
-     , Template t m
+  :: forall req rsp t es.
+     ( Routed t (Map.Map T.Text (Maybe T.Text)) :> es
+     , Dom t :> es
+     , Hold t :> es
+     , PostBuild t :> es
+     , Prerender t :> es
+     , Reflex t
      )
-  => ((Maybe T.Text, Email) -> ApiRequest token publicRequest privateRequest (Either (BackendError FreeTrialError) ()))
+  => ((Maybe T.Text, Email) -> req)
+  -> (Event t req -> Eff es (Event t rsp))
   -> StartFreeTrialData t
-  -> m (StartFreeTrialConfig t)
-startFreeTrial_FRP mkAPI_NewFreeTrial (StartFreeTrialData email confirm clickSubscribe) = mdo
-  --(email, confirm, clickSubscribe) <- startFreeTrial_TMPL (code, errors)
+  -> Eff es (StartFreeTrialConfig t)
+startFreeTrial_FRP mkAPI_NewFreeTrial sendRequest (StartFreeTrialData email confirm clickSubscribe) = do
   queryParams :: Dynamic t (Map.Map T.Text (Maybe T.Text)) <- askRoute
   let code = join . Map.lookup "code" <$> queryParams
   let
@@ -58,11 +61,14 @@ startFreeTrial_FRP mkAPI_NewFreeTrial (StartFreeTrialData email confirm clickSub
         then Right $ Email e
         else Left "Invalid Email"
     (emailErr, emailsGood) = fanEither $ tag (current $ confirmedEmailF <$> email <*> confirm) clickSubscribe
-  let req = ffor (attach (current code) emailsGood) $ mkAPI_NewFreeTrial
+  let req = ffor (attach (current code) emailsGood) mkAPI_NewFreeTrial
 
-  (errRes, good) <- fmap fanEither $ ( requestingIdentity req  )
+  response <- sendRequest req
+  let (errRes, good) = fanEither (castResponse response)
   errors <- holdDyn "" $ leftmost
     [ showUser <$> errRes
     , emailErr
     ]
   pure $ StartFreeTrialConfig code errors good
+  where
+    castResponse = undefined -- TODO: cast response type

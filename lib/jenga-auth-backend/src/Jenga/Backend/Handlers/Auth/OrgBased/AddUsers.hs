@@ -15,6 +15,7 @@ import Jenga.Common.Schema
 import Jenga.Common.Auth
 
 import Rhyolite.Account
+import Jenga.Route
 import Database.Beam.Schema
 import Database.Beam.Postgres
 import Snap
@@ -23,7 +24,6 @@ import Data.Pool
 import Web.ClientSession as CS
 import Data.Signed
 import Control.Monad
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Control.Applicative (some)
 import Text.Parsec
@@ -31,18 +31,20 @@ import Text.Email.Validate
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
 
-type AddUsersConstraint db beR cfg be m n frontendRoute =
-  --forall db beR cfg be m n frontendRoute x.
-     ( MonadIO m
-     , MonadSnap m
+
+type AddUsersConstraint api db be es n frontendRoute =
+     ( IOE :> es
+     , MonadSnap (Eff es)
      , HasJsonNotifyTbl be SendEmailTask n
      , Database Postgres db
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
@@ -51,28 +53,29 @@ type AddUsersConstraint db beR cfg be m n frontendRoute =
 
 
 addUsersHandler
-  :: forall db beR cfg be m n frontendRoute x.
-     ( MonadIO m
-     , MonadSnap m
+  :: forall api db be es n frontendRoute x.
+     ( IOE :> es
+     , MonadSnap (Eff es)
      , HasJsonNotifyTbl be SendEmailTask n
      , Database Postgres db
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
      , HasJengaTable Postgres db SendEmailTask
      )
-  => Id Account
+  => Proxy api
+  -> Id Account
   -> T.Text
   -> frontendRoute (Signed PasswordResetToken)
   -> (Link -> MkEmail x)
   -- ^ Email to send user
-  -> ReaderT cfg m (Either (BackendError AddUsersError) ())
-addUsersHandler acctID emails resetRoute mkEmail = do
+  -> Eff es (Either (BackendError AddUsersError) ())
+addUsersHandler proxy acctID emails resetRoute mkEmail = do
   (uTypeTbl :: PgTable Postgres db UserTypeTable) <- asksTableM
   case sepByCommas emails of
     Left _ -> pure $ Left . BUserError $ NoCommas -- "Error reading list, please ensure all emails are separated by commas"
@@ -87,7 +90,7 @@ addUsersHandler acctID emails resetRoute mkEmail = do
             case mOrgName of
               Nothing -> pure $ Left . BUserError $ NoOrgCode $ T.pack . show $ acctID --"No organization code found"
               Just orgName -> do
-                createNewAccountWithSetupEmail @db @beR email (IsGroupUser email orgName) resetRoute mkEmail >>= \case
+                createNewAccountWithSetupEmail @api @db proxy email (IsGroupUser email orgName) resetRoute mkEmail >>= \case
                   Left bError -> pure $ Left $ AddUser_Signup <$> bError
                   Right a -> pure $ Right a
           pure $ () <$ sequenceA results

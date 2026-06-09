@@ -27,7 +27,7 @@ import GHC.Generics
 import Network.Mail.Mime (Mail)
 import Network.Mail.Mime.Orphans ()
 import qualified Data.Text as T
-import Data.Kind (Constraint)
+import Data.Kind (Constraint, Type)
 import Data.Time
 
 data SendEmailTask f = SendEmailTask
@@ -70,14 +70,14 @@ instance Table StripeRelation where
   newtype PrimaryKey StripeRelation f = StripeKey_UID { unStripeUID :: Columnar f Int64 } deriving Generic
   primaryKey = StripeKey_UID <$> _stripeRelation_uid
 
-type HasStripeRelationConstraint (c :: * -> Constraint) f =
+type HasStripeRelationConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   , c (Columnar f T.Text)
   , c (Columnar f T.Text)
   , c (Columnar f T.Text)
   )
 
-type HasStripeRelationIdConstraint (c :: * -> Constraint) f =
+type HasStripeRelationIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   )
 
@@ -100,12 +100,12 @@ instance Table Unsubscribe where
 instance Beamable Unsubscribe
 instance Beamable (PrimaryKey Unsubscribe)
 
-type HasUnsubscribeTableConstraint (c :: * -> Constraint) f =
+type HasUnsubscribeTableConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f (SqlSerial Int64))
   , c (Columnar f Text)
   )
 
-type HasUnsubscribeTableIdConstraint (c :: * -> Constraint) f =
+type HasUnsubscribeTableIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f (SqlSerial Int64))
   )
 
@@ -135,12 +135,12 @@ instance Table UserTypeTable where
 instance Beamable UserTypeTable
 instance Beamable (PrimaryKey UserTypeTable)
 
-type HasUserTypeTableConstraint (c :: * -> Constraint) f =
+type HasUserTypeTableConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   , c (Columnar f UserType)
   )
 
-type HasUserTypeTableIdConstraint (c :: * -> Constraint) f =
+type HasUserTypeTableIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   )
 
@@ -160,12 +160,12 @@ data OrganizationEmails f = OrganizationEmails
 
 instance Beamable OrganizationEmails
 
-type HasOrganizationEmailsConstraint (c :: * -> Constraint) f =
+type HasOrganizationEmailsConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f T.Text)
   , c (Columnar f T.Text)
   )
 
-type HasOrganizationEmailsIdConstraint (c :: * -> Constraint) f =
+type HasOrganizationEmailsIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f T.Text)
   )
 
@@ -203,7 +203,7 @@ data LogItemRow f = LogItemRow
 
 instance Beamable LogItemRow
 
-type HasLogItemRowConstraint (c :: * -> Constraint) f =
+type HasLogItemRowConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f (SqlSerial Int64))
   , c (Columnar f Bool)
   , c (Columnar f UTCTime)
@@ -211,7 +211,7 @@ type HasLogItemRowConstraint (c :: * -> Constraint) f =
   , c (Columnar f Text)
   )
 
-type HasLogItemRowIdConstraint (c :: * -> Constraint) f =
+type HasLogItemRowIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f (SqlSerial Int64))
   )
 
@@ -251,13 +251,13 @@ instance Table InviteLink where
 instance Beamable InviteLink
 instance Beamable (PrimaryKey InviteLink)
 
-type HasInviteLinkTableConstraint (c :: * -> Constraint) f =
+type HasInviteLinkTableConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f (Maybe OrgName))
   , c (Columnar f T.Text)
   , c (Columnar f (Maybe Int64))
   )
 
-type HasInviteLinkTableIdConstraint (c :: * -> Constraint) f =
+type HasInviteLinkTableIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f T.Text)
   )
 
@@ -281,13 +281,13 @@ instance Table FreeTrial where
   newtype PrimaryKey FreeTrial f = FreeTrial_UID { unFreeTrialUID :: Columnar f Int64 } deriving Generic
   primaryKey = FreeTrial_UID <$> _freeTrial_userID
 
-type HasFreeTrialConstraint (c :: * -> Constraint) f =
+type HasFreeTrialConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   , c (Columnar f UTCTime)
   , c (Columnar f T.Text)
   )
 
-type HasFreeTrialIdConstraint (c :: * -> Constraint) f =
+type HasFreeTrialIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   )
 
@@ -313,12 +313,12 @@ instance Table GithubID where
     deriving Generic
   primaryKey = GitID <$> _githubID_ghid
 
-type HasGithubIDConstraint (c :: * -> Constraint) f =
+type HasGithubIDConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   , c (Columnar f Text)
   )
 
-type HasGithubIDIdConstraint (c :: * -> Constraint) f =
+type HasGithubIDIdConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Int64)
   )
 

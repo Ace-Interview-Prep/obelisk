@@ -14,9 +14,9 @@ import Jenga.Common.Auth
 import Jenga.Common.BeamExtras (Id)
 
 import Rhyolite.Account
-import Obelisk.Route
-import Obelisk.OAuth.AccessToken (TokenRequest (..), TokenGrant (..), getOauthToken)
-import Obelisk.OAuth.Authorization (OAuth (..), RedirectUriParams (..))
+import Jenga.Route
+import Jenga.OAuth.AccessToken (TokenRequest (..), TokenGrant (..), getOauthToken)
+import Jenga.OAuth.Authorization (OAuth (..), RedirectUriParams (..))
 import Database.Beam.Postgres
 import Database.Beam.Schema
 import Database.Beam.Backend.SQL.Types (SqlSerial(..))
@@ -27,7 +27,6 @@ import qualified Network.HTTP.Types.Header as Http
 import Network.HTTP.Client.TLS
 import Web.ClientSession as CS
 import Data.Pool
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Dependent.Sum
 import Data.Maybe (isJust, fromMaybe)
@@ -39,30 +38,33 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Text.Email.Validate as EmailValidate
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 -- | Helper function to handle OAuth login with email-based account lookup
 -- Validates email, creates or links account, and sets cookies
 handleOAuthLogin
-  :: forall db beR cfg frontendRoute oauthIdRow m.
-     ( MonadSnap m
-     , MonadIO m
+  :: forall api db es frontendRoute oauthIdRow.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg AuthCookieName
-     , HasConfig cfg UserTypeCookieName
-     , HasConfig cfg DomainOption
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
+     , Reader cfg :> es, HasConfig cfg AuthCookieName
+     , Reader cfg :> es, HasConfig cfg UserTypeCookieName
+     , Reader cfg :> es, HasConfig cfg DomainOption
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , HasRoute api (R frontendRoute)
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      )
-  => String  -- ^ Email from OAuth provider
+  => Proxy api
+  -> String  -- ^ Email from OAuth provider
   -> Maybe oauthIdRow  -- ^ Existing OAuth ID row if user has logged in before
   -> (oauthIdRow -> Int64)  -- ^ Extract account ID from OAuth ID row
-  -> (Id Account -> ReaderT cfg m ())  -- ^ Insert new OAuth ID for account
+  -> (Id Account -> Eff es ())  -- ^ Insert new OAuth ID for account
   -> R frontendRoute  -- ^ Where to redirect after success
-  -> ReaderT cfg m (Id Account)
-handleOAuthLogin emailStr maybeOAuthID extractAccountId insertOAuthId redirectToRoute = do
+  -> Eff es (Id Account, Snap ())
+handleOAuthLogin proxy emailStr maybeOAuthID extractAccountId insertOAuthId redirectToRoute = do
   -- Validate email format
   case EmailValidate.validate (T.encodeUtf8 $ T.pack emailStr) of
     Left _err -> error $ "Invalid email format from OAuth provider: " <> emailStr
@@ -97,28 +99,28 @@ handleOAuthLogin emailStr maybeOAuthID extractAccountId insertOAuthId redirectTo
           -- Existing user login
           pure $ AccountId $ SqlSerial $ extractAccountId oauthIdRow
 
-      setCookiesAndRedirect @db @beR accountID' redirectToRoute
-      pure accountID'
+      snapAction <- setCookiesAndRedirect @api @db proxy accountID' redirectToRoute
+      pure (accountID', snapAction)
 
 -- | Helper function to set both auth and user type cookies after OAuth login
 setCookiesAndRedirect
-  :: forall db beR cfg frontendRoute m.
-     ( MonadSnap m
-     , MonadIO m
+  :: forall api db es frontendRoute.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg AuthCookieName
-     , HasConfig cfg UserTypeCookieName
-     , HasConfig cfg DomainOption
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
+     , Reader cfg :> es, HasConfig cfg AuthCookieName
+     , Reader cfg :> es, HasConfig cfg UserTypeCookieName
+     , Reader cfg :> es, HasConfig cfg DomainOption
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , HasRoute api (R frontendRoute)
      , HasJengaTable Postgres db UserTypeTable
      )
-  => Id Account
+  => Proxy api
+  -> Id Account
   -> R frontendRoute
-  -> ReaderT cfg m ()
-setCookiesAndRedirect accountID' redirectToRoute = do
+  -> Eff es (Snap ())
+setCookiesAndRedirect proxy accountID' redirectToRoute = do
   liftIO $ putStrLn $ "setCookiesAndRedirect called for account: " <> show accountID'
   (uTypeTbl :: PgTable Postgres db UserTypeTable) <- asksTableM
   userType <- withDbEnv $ getUserType uTypeTbl accountID'
@@ -134,72 +136,75 @@ setCookiesAndRedirect accountID' redirectToRoute = do
   liftIO $ putStrLn $ "About to set cookies for user type: " <> show userType'
   userTypeCookieName <- getUserTypeCookieName <$> asksM
   liftIO $ putStrLn $ "User type cookie name: " <> show userTypeCookieName
-  addUserTypeCookieHeader userTypeCookieName userType'
+  domainOpts <- asksM
   liftIO $ putStrLn "User type cookie set, now setting auth cookie"
   authCookieName <- getAuthCookieName <$> asksM
   liftIO $ putStrLn $ "Auth cookie name: " <> show authCookieName
-  addAuthCookieHeader authCookieName accountID'
+  csk <- asksM
   liftIO $ putStrLn "Both cookies set, checking response headers before redirect"
 
-  -- Debug: inspect response headers before redirect
-  resp <- Snap.getResponse
-  let headers_ = Snap.listHeaders resp
-  liftIO $ putStrLn $ "Response headers before redirect: " <> show headers_
+  link_ <- renderFullRouteFE proxy redirectToRoute
 
-  frontendRedirect @beR redirectToRoute
-  pure ()
+  pure $ do
+    addUserTypeCookieHeader domainOpts userTypeCookieName userType'
+    addAuthCookieHeader csk domainOpts authCookieName accountID'
+    -- Debug: inspect response headers before redirect
+    resp <- Snap.getResponse
+    let headers_ = Snap.listHeaders resp
+    liftIO $ putStrLn $ "Response headers before redirect: " <> show headers_
+    frontendRedirect link_
 
 -- TODO: they dont need to reset password if they have signed up with github
 -- | TODO: not actually in use, should actually work no problem with github
 oauthHandler
-  :: forall db beR cfg frontendRoute m.
-     ( MonadSnap m
+  :: forall api db es frontendRoute.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg CS.Key
-     , HasConfig cfg AuthCookieName
-     , HasConfig cfg DomainOption
-     , HasConfig cfg UserTypeCookieName
-     , HasConfig cfg GithubOAuthClientSecret
-     , HasConfig cfg GithubOAuthClientID
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg AuthCookieName
+     , Reader cfg :> es, HasConfig cfg DomainOption
+     , Reader cfg :> es, HasConfig cfg UserTypeCookieName
+     , Reader cfg :> es, HasConfig cfg GithubOAuthClientSecret
+     , Reader cfg :> es, HasConfig cfg GithubOAuthClientID
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db GithubID
      , HasJengaTable Postgres db UserTypeTable
      )
-  => DSum OAuth Identity
-  -> beR (R OAuth)
+  => Proxy api
+  -> DSum OAuth Identity
+  -> (R OAuth -> T.Text)  -- ^ beR route renderer
   -> R frontendRoute
   -> R frontendRoute
-  -> ReaderT cfg m (Maybe (Id Account, T.Text))
-oauthHandler oauthRoute oAuthRedirectGADT redirectToRoute redirectNoAuth = case oauthRoute of
+  -> Eff es (Maybe (Id Account, T.Text), Snap ())
+oauthHandler proxy oauthRoute renderBeR redirectToRoute redirectNoAuth = case oauthRoute of
   OAuth_RedirectUri :/ redirectParams -> case redirectParams of
     Nothing -> liftIO $ error "Expected to receive the authorization code here"
     Just (RedirectUriParams code _mstate) -> do
       clientId <- getGithubOAuthClientID <$> asksM
       clientSecret <- getGithubOAuthClientSecret <$> asksM
-      route' <- T.pack . show . getBaseURL <$> asksM
+      baseUrl <- asksM
+      let route' = T.pack . show . getBaseURL $ baseUrl
       let t = TokenRequest
             { _tokenRequest_grant = TokenGrant_AuthorizationCode $ T.encodeUtf8 code
             , _tokenRequest_clientId = clientId
             , _tokenRequest_clientSecret = clientSecret
-            , _tokenRequest_redirectUri = (\x -> oAuthRedirectGADT :/ x)
+            , _tokenRequest_redirectUri = renderBeR
             }
           oAuthUrl = "https://github.com/login/oauth/access_token"
       tlsMgr <- liftIO $ Http.newManager tlsManagerSettings
 
-      (checkedEncoder :: FullRouteEncoder beR frontendRoute) <- asksM
-
-      req <- liftIO $ getOauthToken oAuthUrl route' checkedEncoder t
+      req <- liftIO $ getOauthToken oAuthUrl route' t
       rsp <- liftIO $ flip Http.httpLbs tlsMgr (req { Http.requestHeaders = Http.requestHeaders req
                                                       <> [(Http.hAccept, "application/json")] }
                                                )
       let accessToken = fmap access_token . Aeson.decode . Http.responseBody $ rsp
       case accessToken of
         Nothing -> do
-          frontendRedirect @beR redirectNoAuth
-          pure Nothing
+          noAuthLink <- renderFullRouteFE proxy redirectNoAuth
+          pure (Nothing, frontendRedirect noAuthLink)
         Just aToken -> do
           reqUser <- liftIO $ Http.parseRequest "https://api.github.com/user"
           let reqUser' = reqUser { Http.requestHeaders = Http.requestHeaders reqUser <>
@@ -236,64 +241,65 @@ oauthHandler oauthRoute oAuthRedirectGADT redirectToRoute redirectNoAuth = case 
 
               liftIO $ putStrLn ghEmail
               let ghDisplayName = T.pack $ fromMaybe (_githubUser_login userGH) (_githubUser_name userGH)
-              acctId <- handleOAuthLogin @db @beR
+              (acctId, snapAction) <- handleOAuthLogin @api @db
+                proxy
                 ghEmail
                 maybeGitID
                 (\(GithubID _ghid uid) -> uid)
                 (\aid -> withDbEnv $ insertNewGithubID ghTbl userGH aid)
                 redirectToRoute
-              pure $ Just (acctId, ghDisplayName)
+              pure (Just (acctId, ghDisplayName), snapAction)
 
 -- | Google OAuth handler
 googleOAuthHandler
-  :: forall db beR cfg frontendRoute m.
-     ( MonadSnap m
+  :: forall api db es frontendRoute.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg CS.Key
-     , HasConfig cfg AuthCookieName
-     , HasConfig cfg DomainOption
-     , HasConfig cfg UserTypeCookieName
-     , HasConfig cfg GoogleOAuthClientSecret
-     , HasConfig cfg GoogleOAuthClientID
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg AuthCookieName
+     , Reader cfg :> es, HasConfig cfg DomainOption
+     , Reader cfg :> es, HasConfig cfg UserTypeCookieName
+     , Reader cfg :> es, HasConfig cfg GoogleOAuthClientSecret
+     , Reader cfg :> es, HasConfig cfg GoogleOAuthClientID
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db GoogleID
      , HasJengaTable Postgres db UserTypeTable
      )
-  => DSum OAuth Identity
-  -> beR (R OAuth)
+  => Proxy api
+  -> DSum OAuth Identity
+  -> (R OAuth -> T.Text)  -- ^ beR route renderer
   -> R frontendRoute
   -> R frontendRoute
-  -> ReaderT cfg m (Maybe (Id Account, T.Text))
-googleOAuthHandler oauthRoute oAuthRedirectGADT redirectToRoute redirectNoAuth = case oauthRoute of
+  -> Eff es (Maybe (Id Account, T.Text), Snap ())
+googleOAuthHandler proxy oauthRoute renderBeR redirectToRoute redirectNoAuth = case oauthRoute of
   OAuth_RedirectUri :/ redirectParams -> case redirectParams of
     Nothing -> liftIO $ error "Expected to receive the authorization code here"
     Just (RedirectUriParams code _mstate) -> do
       clientId <- getGoogleOAuthClientID <$> asksM
       clientSecret <- getGoogleOAuthClientSecret <$> asksM
-      route' <- T.pack . show . getBaseURL <$> asksM
+      baseUrl <- asksM
+      let route' = T.pack . show . getBaseURL $ baseUrl
       let t = TokenRequest
             { _tokenRequest_grant = TokenGrant_AuthorizationCode $ T.encodeUtf8 code
             , _tokenRequest_clientId = clientId
             , _tokenRequest_clientSecret = clientSecret
-            , _tokenRequest_redirectUri = (\x -> oAuthRedirectGADT :/ x)
+            , _tokenRequest_redirectUri = renderBeR
             }
           oAuthUrl = "https://oauth2.googleapis.com/token"
       tlsMgr <- liftIO $ Http.newManager tlsManagerSettings
 
-      (checkedEncoder :: FullRouteEncoder beR frontendRoute) <- asksM
-
-      req <- liftIO $ getOauthToken oAuthUrl route' checkedEncoder t
+      req <- liftIO $ getOauthToken oAuthUrl route' t
       rsp <- liftIO $ flip Http.httpLbs tlsMgr (req { Http.requestHeaders = Http.requestHeaders req
                                                       <> [(Http.hAccept, "application/json")] }
                                                )
       let accessToken = fmap access_token . Aeson.decode . Http.responseBody $ rsp
       case accessToken of
         Nothing -> do
-          frontendRedirect @beR redirectNoAuth
-          pure Nothing
+          noAuthLink <- renderFullRouteFE proxy redirectNoAuth
+          pure (Nothing, frontendRedirect noAuthLink)
         Just aToken -> do
           reqUser <- liftIO $ Http.parseRequest "https://www.googleapis.com/oauth2/v2/userinfo"
           let reqUser' = reqUser { Http.requestHeaders = Http.requestHeaders reqUser <>
@@ -310,64 +316,65 @@ googleOAuthHandler oauthRoute oAuthRedirectGADT redirectToRoute redirectNoAuth =
 
               let googleEmail = _googleUser_email userG
                   googleDisplayName = T.pack $ fromMaybe (takeWhile (/= '@') googleEmail) (_googleUser_name userG)
-              acctId <- handleOAuthLogin @db @beR
+              (acctId, snapAction) <- handleOAuthLogin @api @db
+                proxy
                 googleEmail
                 maybeGoogleID
                 (\(GoogleID _gid uid) -> uid)
                 (\aid -> withDbEnv $ insertNewGoogleID googleTbl userG aid)
                 redirectToRoute
-              pure $ Just (acctId, googleDisplayName)
+              pure (Just (acctId, googleDisplayName), snapAction)
 
 -- | Discord OAuth handler
 discordOAuthHandler
-  :: forall db beR cfg frontendRoute m.
-     ( MonadSnap m
+  :: forall api db es frontendRoute.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg BaseURL
-     , HasConfig cfg CS.Key
-     , HasConfig cfg AuthCookieName
-     , HasConfig cfg DomainOption
-     , HasConfig cfg UserTypeCookieName
-     , HasConfig cfg DiscordOAuthClientSecret
-     , HasConfig cfg DiscordOAuthClientID
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg AuthCookieName
+     , Reader cfg :> es, HasConfig cfg DomainOption
+     , Reader cfg :> es, HasConfig cfg UserTypeCookieName
+     , Reader cfg :> es, HasConfig cfg DiscordOAuthClientSecret
+     , Reader cfg :> es, HasConfig cfg DiscordOAuthClientID
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db DiscordID
      , HasJengaTable Postgres db UserTypeTable
      )
-  => DSum OAuth Identity
-  -> beR (R OAuth)
+  => Proxy api
+  -> DSum OAuth Identity
+  -> (R OAuth -> T.Text)  -- ^ beR route renderer
   -> R frontendRoute
   -> R frontendRoute
-  -> ReaderT cfg m (Maybe (Id Account, T.Text))
-discordOAuthHandler oauthRoute oAuthRedirectGADT redirectToRoute redirectNoAuth = case oauthRoute of
+  -> Eff es (Maybe (Id Account, T.Text), Snap ())
+discordOAuthHandler proxy oauthRoute renderBeR redirectToRoute redirectNoAuth = case oauthRoute of
   OAuth_RedirectUri :/ redirectParams -> case redirectParams of
     Nothing -> liftIO $ error "Expected to receive the authorization code here"
     Just (RedirectUriParams code _mstate) -> do
       clientId <- getDiscordOAuthClientID <$> asksM
       clientSecret <- getDiscordOAuthClientSecret <$> asksM
-      route' <- T.pack . show . getBaseURL <$> asksM
+      baseUrl <- asksM
+      let route' = T.pack . show . getBaseURL $ baseUrl
       let t = TokenRequest
             { _tokenRequest_grant = TokenGrant_AuthorizationCode $ T.encodeUtf8 code
             , _tokenRequest_clientId = clientId
             , _tokenRequest_clientSecret = clientSecret
-            , _tokenRequest_redirectUri = (\x -> oAuthRedirectGADT :/ x)
+            , _tokenRequest_redirectUri = renderBeR
             }
           oAuthUrl = "https://discord.com/api/oauth2/token"
       tlsMgr <- liftIO $ Http.newManager tlsManagerSettings
 
-      (checkedEncoder :: FullRouteEncoder beR frontendRoute) <- asksM
-
-      req <- liftIO $ getOauthToken oAuthUrl route' checkedEncoder t
+      req <- liftIO $ getOauthToken oAuthUrl route' t
       rsp <- liftIO $ flip Http.httpLbs tlsMgr (req { Http.requestHeaders = Http.requestHeaders req
                                                       <> [(Http.hAccept, "application/json")] }
                                                )
       let accessToken = fmap access_token . Aeson.decode . Http.responseBody $ rsp
       case accessToken of
         Nothing -> do
-          frontendRedirect @beR redirectNoAuth
-          pure Nothing
+          noAuthLink <- renderFullRouteFE proxy redirectNoAuth
+          pure (Nothing, frontendRedirect noAuthLink)
         Just aToken -> do
           reqUser <- liftIO $ Http.parseRequest "https://discord.com/api/users/@me"
           let reqUser' = reqUser { Http.requestHeaders = Http.requestHeaders reqUser <>
@@ -384,10 +391,11 @@ discordOAuthHandler oauthRoute oAuthRedirectGADT redirectToRoute redirectNoAuth 
 
               let discordEmail = fromMaybe (_discordUser_username userD) $ _discordUser_email userD
                   discordDisplayName = T.pack $ _discordUser_username userD
-              acctId <- handleOAuthLogin @db @beR
+              (acctId, snapAction) <- handleOAuthLogin @api @db
+                proxy
                 discordEmail
                 maybeDiscordID
                 (\(DiscordID _did uid) -> uid)
                 (\aid -> withDbEnv $ insertNewDiscordID discordTbl userD aid)
                 redirectToRoute
-              pure $ Just (acctId, discordDisplayName)
+              pure (Just (acctId, discordDisplayName), snapAction)

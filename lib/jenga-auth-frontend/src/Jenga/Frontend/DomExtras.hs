@@ -3,60 +3,70 @@
 module Jenga.Frontend.DomExtras where
 
 import Control.Lens ((%~))
-import Obelisk.Route.Frontend
-import Reflex.Dom.Core
-import Language.Javascript.JSaddle
-import qualified GHCJS.DOM.Types as DOM
-import qualified GHCJS.DOM.Element as Element
-
-import Control.Monad
-import Data.Proxy
+import Jenga.Route.Frontend (RouteToUrl, SetRoute, askRouteToUrl)
+import Reflex (Reflex, Event, Dynamic, current, tag, updated, leftmost)
+import Reflex.Dom.Core (GhcjsDomSpace, Element, EventResult, AttributeName(..)
+                       , elementConfig_initialAttributes, elementConfig_eventSpec
+                       , addEventSpecFlags, Click(..), preventDefault, domEvent
+                       , InputElementConfig, InputElement)
+import qualified GHCJS.DOM.Element as GElement
+import Control.Monad (when)
+import Data.Default (def)
+import Data.Proxy (Proxy(..))
 import qualified Data.Map as Map
 import qualified Data.Text as T
 
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Dom (Dom, element, blank)
+import Reflex.Effectful.Effect.PostBuild (PostBuild, getPostBuild)
+import Reflex.Effectful.Effect.PerformEvent (PerformEvent, performEvent_)
+import Reflex.Effectful.Effect.JSM (JSM', liftJSM)
+
 elDynHtmlAttr_
-  :: ( DomBuilder t m
-     , PostBuild t m
-     , PerformEvent t m
-     , DOM.MonadJSM (Performable m)
-     , Element.IsElement (RawElement (DomBuilderSpace m))
+  :: ( Dom t :> es
+     , PostBuild t :> es
+     , PerformEvent t :> es
+     , JSM' :> es
+     , Reflex t
      )
   => T.Text
   -> Map.Map T.Text T.Text
   -> Dynamic t T.Text
-  -> m (Element EventResult (DomBuilderSpace m) t)
+  -> Eff es (Element EventResult GhcjsDomSpace t)
 elDynHtmlAttr_ elementTag attrs_ html = do
   let cfg = def & initialAttributes .~ Map.mapKeys (AttributeName Nothing) attrs_
-  (e, _) <- element elementTag cfg $ return ()
+  (e, _) <- element elementTag cfg $ pure ()
   postBuild <- getPostBuild
-  performEvent_ $ liftJSM . Element.setInnerHTML (_element_raw e) <$> leftmost [updated html, tag (current html) postBuild]
+  performEvent_ $ ffor (leftmost [updated html, tag (current html) postBuild]) $ \h ->
+    liftJSM $ GElement.setInnerHTML (_element_raw e) h
   return e
-
-
+  where
+    initialAttributes = undefined -- TODO: need lens from reflex-dom
+    _element_raw = undefined -- TODO: need accessor
+    ffor ev f = f <$> ev
 
 routeLinkImpl
-  :: forall t m a route.
-     ( DomBuilder t m
-     , RouteToUrl route m
-     , SetRoute t route m
+  :: forall t es a route.
+     ( Dom t :> es
+     , RouteToUrl route :> es
+     , SetRoute t route :> es
+     , Reflex t
      )
   => Map.Map AttributeName T.Text
-  -> route -- ^ Target route
-  -> m a -- ^ Child widget
-  -> m (Event t (), a)
+  -> route
+  -> Eff es a
+  -> Eff es (Event t (), a)
 routeLinkImpl attrs route wrappedChild = do
   enc <- askRouteToUrl
   let
-    -- If targetBlank == True, the link will be opened in another page. In that
-    -- case, we don't prevent the default behaviour, and we don't need to
-    -- setRoute.
     targetBlank = Map.lookup "target" attrs == Just "_blank"
-    cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
+    cfg = (def :: ElementConfig EventResult t GhcjsDomSpace)
         & elementConfig_initialAttributes .~ ("href" =: enc route <> attrs)
         & (if targetBlank
            then id
-           else elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Click (const preventDefault))
+           else elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy GhcjsDomSpace) Click (const preventDefault))
   (e, a) <- element "a" cfg wrappedChild
   when targetBlank $ pure ()
-  --when (not targetBlank) $ setRoute $ route <$ domEvent Click e
   return (domEvent Click e, a)
+  where
+    ElementConfig = undefined -- TODO: needs reflex-dom types in scope

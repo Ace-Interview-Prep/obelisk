@@ -27,28 +27,29 @@ import Database.Beam.Postgres
 import Database.Beam.Schema
 import Data.Signed.ClientSession
 
-import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class
 import Data.Pool
 import Data.Signed
 import qualified Data.Text as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 
 -- | Note that the login function from rhyolite really just returns the ID
 loginHandler
-  :: forall db cfg m.
-     ( MonadIO m
+  :: forall db es.
+     ( IOE :> es
      , Database Postgres db
-     , Snap.MonadSnap m
-     , HasConfig cfg DomainOption
-     , HasConfig cfg AuthCookieName
-     , HasConfig cfg Key
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg DomainOption
+     , Reader cfg :> es, HasConfig cfg AuthCookieName
+     , Reader cfg :> es, HasConfig cfg Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db Account
      )
   => (T.Text, Password)
-  -> ReaderT cfg m (Either (BackendError LoginError) (Signed (Id Account), UserType))
+  -> Eff es (Either (BackendError LoginError) (Signed (Id Account), UserType, Snap.Snap ()))
 loginHandler (email, Password pass) = do
   tryLogin @db (email, Password pass) >>= \case
     Left bError -> pure $ Left bError
@@ -56,20 +57,20 @@ loginHandler (email, Password pass) = do
       csk <- asksM
       authCookieName <- getAuthCookieName <$> asksM
       signedTokenUserID_  <- liftIO $ signWithKey csk usersAccountId
-      addAuthCookieHeader authCookieName usersAccountId
-      pure $ Right (signedTokenUserID_, userType)
+      domainOpts <- asksM
+      pure $ Right (signedTokenUserID_, userType, addAuthCookieHeader csk domainOpts authCookieName usersAccountId)
 
 -- | If we are using websockets, this is all we need
 tryLogin
-  :: forall db cfg m.
-     ( MonadIO m
+  :: forall db es.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db Account
      )
   => (T.Text, Password)
-  -> ReaderT cfg m (Either
+  -> Eff es (Either
                     (BackendError LoginError)
                     (Id Account, UserType)
                    )

@@ -4,11 +4,9 @@ module Jenga.Backend.Utils.Snap where
 import Jenga.Common.Errors
 import Jenga.Backend.Utils.HasConfig
 
-import Obelisk.Route
 import Snap
-import Obelisk.Snap.Extras (writeJSON)
+import Jenga.Snap.Extras (writeJSON)
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
 import Control.Applicative
 import Data.Aeson as Aeson
 import Data.CaseInsensitive (mk)
@@ -24,18 +22,13 @@ getHeader headerName = Snap.getHeader (mk $ T.encodeUtf8 headerName) <$> Snap.ge
 
 
 
--- | Redirect to the specified frontend route
+-- | Redirect to the specified frontend route (given a pre-rendered Link)
 frontendRedirect
-  :: forall beR cfg m frontendRoute.
-     ( MonadSnap m
-     , HasConfig cfg BaseURL
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     )
-  => R frontendRoute
-  -> ReaderT cfg m ()
-frontendRedirect dest = do
-  link_ <- renderFullRouteFE @beR dest
-  liftSnap $ Snap.redirect $ T.encodeUtf8 . getLink $ link_
+  :: MonadSnap m
+  => Link
+  -> m ()
+frontendRedirect link_ =
+  Snap.redirect $ T.encodeUtf8 . getLink $ link_
 
 -- -- | Redirect to the specified frontend route
 -- frontendRedirect :: MonadSnap m => T.Text -> R FrontendRoute -> m ()

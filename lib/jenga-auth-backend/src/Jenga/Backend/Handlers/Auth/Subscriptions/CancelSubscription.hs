@@ -17,23 +17,26 @@ import Database.Beam.Postgres
 import Rhyolite.Account
 
 import Data.Pool
-import Control.Monad.Trans.Reader
+import Control.Monad.IO.Class
 
 import Web.Stripe
 import Web.Stripe.Customer
 import Web.Stripe.Subscription
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 cancelSubscriptionHandler
-  :: forall db cfg m.
-     ( MonadIO m
+  :: forall db es.
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg StripeConfig
-     , HasConfig cfg (Pool Connection)
+     , Reader cfg :> es, HasConfig cfg StripeConfig
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
      , HasJengaTable Postgres db StripeRelation
      , HasJengaTable Postgres db Account
      )
   => Id Account
-  -> ReaderT cfg m (Either (BackendError CancelSubError) ())
+  -> Eff es (Either (BackendError CancelSubError) ())
 cancelSubscriptionHandler acctID = do
   stripeConfig <- asksM -- Cfg _stripeConfig
 

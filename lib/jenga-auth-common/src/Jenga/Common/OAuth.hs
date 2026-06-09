@@ -11,7 +11,7 @@ module Jenga.Common.OAuth where
 import Data.Aeson
 import Data.Text (Text)
 import Data.Int (Int64)
-import Data.Kind (Constraint)
+import Data.Kind (Constraint, Type)
 import GHC.Generics
 import Database.Beam
 
@@ -28,7 +28,7 @@ instance Table GoogleID where
     deriving Generic
   primaryKey = GooglePK <$> _googleID_gid
 
-type HasGoogleIDConstraint (c :: * -> Constraint) f =
+type HasGoogleIDConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Text)
   , c (Columnar f Int64)
   )
@@ -52,7 +52,7 @@ instance Table DiscordID where
     deriving Generic
   primaryKey = DiscordPK <$> _discordID_did
 
-type HasDiscordIDConstraint (c :: * -> Constraint) f =
+type HasDiscordIDConstraint (c :: Type -> Constraint) f =
   ( c (Columnar f Text)
   , c (Columnar f Int64)
   )

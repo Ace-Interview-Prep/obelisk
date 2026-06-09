@@ -5,7 +5,6 @@ module Jenga.Frontend.Platform where
 
 import Jenga.Common.Auth
 import Jenga.Common.HasJengaConfig
-import Obelisk.Configs
 import Language.Javascript.JSaddle
 import Network.URI as URI
 import Control.Lens ((^.))
@@ -13,14 +12,17 @@ import Data.Maybe
 import Data.Text as T
 import Data.Text.Encoding as T
 
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Jenga.Configs (Configs, getConfig)
+
 getDomain :: URI -> Maybe T.Text
 getDomain baseUri_ =
   (T.pack . URI.uriRegName)
-  --- $ fromMaybe (error "no domain we can set cookies for")
   <$> URI.uriAuthority baseUri_
 
 newtype RouteFilePath = RouteFilePath { getRouteFile :: T.Text }
-chooseJengaRouteFile :: HasConfigs m => m RouteFilePath
+
+chooseJengaRouteFile :: Configs :> es => Eff es RouteFilePath
 chooseJengaRouteFile = fmap RouteFilePath $ do
   route_ <- getConfig "common/route"
   case parseURI =<< T.unpack . T.strip . T.decodeUtf8 <$> route_ of
@@ -28,7 +30,6 @@ chooseJengaRouteFile = fmap RouteFilePath $ do
     Just uri_ -> case getDomain uri_ of
 #ifdef android_HOST_OS
       Just "localhost" -> do
-        -- On mobile
         getConfig "common/ngrokRoute" >>= \case
           Nothing -> pure "common/route"
           Just _ -> pure "common/ngrokRoute"
@@ -37,20 +38,7 @@ chooseJengaRouteFile = fmap RouteFilePath $ do
 #endif
       _ -> pure "common/route"
 
---- in Frontend.hs
--- baseUrl <- readJengaBaseUrlFromConfigsFiles
---
--- TODO: can we get even crazier and include configs, validated at TH step?
------  -> need to ensure no security concerns first
-
--- data FrontendConfig = FrontendConfig
---   { _baseUrl :: BaseURL
---   }
--- instance HasConfig FrontendConfig BaseURL where
---   fromCfg = _baseUrl
-
-
-readJengaBaseURL :: HasConfigs m => m (Maybe BaseURL)
+readJengaBaseURL :: Configs :> es => Eff es (Maybe BaseURL)
 readJengaBaseURL = do
   route_ <- getConfig "common/route"
   uriString <- case parseURI =<< T.unpack . T.strip . T.decodeUtf8 <$> route_ of
@@ -58,7 +46,6 @@ readJengaBaseURL = do
     Just uri_ -> case getDomain uri_ of
 #ifdef android_HOST_OS
       Just "localhost" -> do
-        -- On mobile development
         getConfig "common/ngrokRoute" >>= \case
           Nothing -> pure . T.pack $ show uri_
           Just url -> pure . T.strip . T.decodeUtf8 $ url
@@ -67,6 +54,7 @@ readJengaBaseURL = do
 #endif
       _ -> pure . T.pack $ show uri_
   pure $ fmap BaseURL . parseURI . T.unpack $ uriString
+
 isNotMobile :: JSM Bool
 isNotMobile = do
   width_ <- fromJSVal =<< (jsg (s "document")) ^. js (s "documentElement") ^. js (s "clientWidth")

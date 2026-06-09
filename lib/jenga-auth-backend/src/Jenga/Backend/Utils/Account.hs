@@ -4,7 +4,6 @@ import Jenga.Backend.DB.Auth
 import Jenga.Backend.DB.OrgBased
 import Jenga.Backend.Utils.HasTable (PgTable, HasJengaTable, asksTableM, withDbEnv)
 import Jenga.Common.Schema
-import Control.Monad.Trans.Reader
 
 import Web.ClientSession as CS
 
@@ -16,7 +15,7 @@ import Jenga.Common.Auth
 
 import Rhyolite.Account
 import Rhyolite.Backend.Account
-import Obelisk.Route
+import Jenga.Route
 import Database.Beam.Postgres
 import Database.Beam
 import Network.Mail.Mime
@@ -27,25 +26,29 @@ import Data.Bifunctor
 import Text.Email.Validate
 import qualified Data.Text.Encoding as T
 
+import Effectful (Eff, (:>), IOE)
+import Effectful.Reader.Static (Reader)
+
 
 
 createNewAccount
-  :: forall db beR frontendRoute m cfg .
-     ( MonadIO m
+  :: forall api db frontendRoute es .
+     ( IOE :> es
      , Database Postgres db
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
      )
-  => EmailAddress
+  => Proxy api
+  -> EmailAddress
   -> IsUserType
   -> frontendRoute (Signed PasswordResetToken)
-  -> ReaderT cfg m (Either (BackendError UserSignupError) Link)
-createNewAccount email isUserType resetRoute = do
+  -> Eff es (Either (BackendError UserSignupError) Link)
+createNewAccount proxy email isUserType resetRoute = do
   csk <- asksM
   (uTypeTbl :: PgTable Postgres db UserTypeTable) <- asksTableM
   (orgTbl :: PgTable Postgres db OrganizationEmails) <- asksTableM
@@ -61,31 +64,32 @@ createNewAccount email isUserType resetRoute = do
             Nothing -> pure $ Left . BUserError $ FailedMakeResetToken
             Just nonce -> do
               token <- withDbEnv $ passwordResetToken csk aid nonce
-              resetLink <- renderFullRouteFE @beR $ ((resetRoute :/ token) :: R frontendRoute)
+              resetLink <- renderFullRouteFE proxy $ ((resetRoute :/ token) :: R frontendRoute)
               pure $ Right resetLink
 
 createNewAccountWithSetupEmail
-  :: forall db beR cfg be m n frontendRoute x.
-     ( MonadIO m
+  :: forall api db es be n frontendRoute x.
+     ( IOE :> es
      , HasJsonNotifyTbl be SendEmailTask n
      , Database Postgres db
-     , HasConfig cfg AdminEmail
-     , HasConfig cfg CS.Key
-     , HasConfig cfg (Pool Connection)
-     , HasConfig cfg (FullRouteEncoder beR frontendRoute)
-     , HasConfig cfg BaseURL
+     , Reader cfg :> es, HasConfig cfg AdminEmail
+     , Reader cfg :> es, HasConfig cfg CS.Key
+     , Reader cfg :> es, HasConfig cfg (Pool Connection)
+     , HasRoute api (R frontendRoute)
+     , Reader cfg :> es, HasConfig cfg BaseURL
      , HasJengaTable Postgres db Account
      , HasJengaTable Postgres db UserTypeTable
      , HasJengaTable Postgres db OrganizationEmails
      , HasJengaTable Postgres db SendEmailTask
      )
-  => EmailAddress
+  => Proxy api
+  -> EmailAddress
   -> IsUserType
   -> frontendRoute (Signed PasswordResetToken)
   -> (Link -> MkEmail x)
-  -> ReaderT cfg m (Either (BackendError UserSignupError)  ())
-createNewAccountWithSetupEmail email isUserType resetRoute mkEmail = do
-  (createNewAccount @db @beR email isUserType resetRoute) >>= (\case
+  -> Eff es (Either (BackendError UserSignupError)  ())
+createNewAccountWithSetupEmail proxy email isUserType resetRoute mkEmail = do
+  (createNewAccount @api @db proxy email isUserType resetRoute) >>= (\case
     Left e -> pure $ Left e
     Right link_ -> do
       x <- newMkEmailHtml @db [to] $ mkEmail link_

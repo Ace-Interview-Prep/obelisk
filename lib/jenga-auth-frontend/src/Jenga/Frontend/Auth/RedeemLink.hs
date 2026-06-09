@@ -5,13 +5,15 @@ module Jenga.Frontend.Auth.RedeemLink where
 import Templates.Types
 import Jenga.Common.Errors
 import Jenga.Common.Auth
-import Rhyolite.Api (ApiRequest(..))
-import Obelisk.Route.Frontend
-import Reflex.Dom.Core
+import Jenga.Route.Frontend (Routed, askRoute)
+import Reflex (Reflex, Event, Dynamic, current, tag, attach, leftmost, ffor, fanEither, (<$))
 
-import Control.Monad.Fix
 import qualified Data.Text as T
-import Data.Functor.Identity
+
+import Effectful (Eff, (:>))
+import Reflex.Effectful.Effect.Hold (Hold, holdDyn)
+import Reflex.Effectful.Effect.Dom (Dom)
+import Reflex.Effectful.Effect.PostBuild (PostBuild)
 
 
 newtype RedeemLinkConfig t = RedeemLinkConfig
@@ -25,20 +27,18 @@ data RedeemLinkData t m = RedeemLinkData
   }
 
 redeemLink_FRP
-  :: ( DomBuilder t m
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     , Routed t T.Text m
-     , Requester t m
-     , Request m ~ ApiRequest token publicRequest privateRequest
-     , Response m ~ Identity
+  :: forall req rsp t es.
+     ( Dom t :> es
+     , PostBuild t :> es
+     , Hold t :> es
+     , Routed t T.Text :> es
+     , Reflex t
      )
-  => ((T.Text, Email) -> ApiRequest token publicRequest privateRequest (Either (BackendError RedeemLinkError) ()))
-  -> RedeemLinkData t m
-  -> m (RedeemLinkConfig t)
-redeemLink_FRP mkAPI (RedeemLinkData email' eConfirm' submit) = mdo
-  --RedeemLinkData email' eConfirm' submit <- redeemLink_TMPL $ RedeemLinkConfig errors
+  => ((T.Text, Email) -> req)
+  -> (Event t req -> Eff es (Event t rsp))
+  -> RedeemLinkData t (Eff es)
+  -> Eff es (RedeemLinkConfig t)
+redeemLink_FRP mkAPI sendRequest (RedeemLinkData email' eConfirm' submit) = do
   let email = value email'
   let eConfirm = value eConfirm'
   let
@@ -50,11 +50,9 @@ redeemLink_FRP mkAPI (RedeemLinkData email' eConfirm' submit) = mdo
     emails_agree = fmap checkMatch $ (,) <$> email <*> eConfirm
   let (bad, good) = fanEither (tag (current emails_agree) submit)
   codeLink <- askRoute
-  let req = ffor (attach (current codeLink) $ Email <$> good) $ mkAPI
-        -- \(code, email_) ->
-        -- ApiRequest_Public $ PublicRequest_RedeemLink code email_
-  (err, res) <- fmap fanEither $ ( requestingIdentity req  )
-
+  let req = ffor (attach (current codeLink) $ Email <$> good) mkAPI
+  response <- sendRequest req
+  let (err, res) = fanEither (castResponse response)
 
   let errorsEv = Just <$> leftmost [ showUser <$> err
                                    , bad
@@ -62,3 +60,6 @@ redeemLink_FRP mkAPI (RedeemLinkData email' eConfirm' submit) = mdo
                                    ]
   errors <- holdDyn Nothing errorsEv
   pure $ RedeemLinkConfig errors
+  where
+    value = undefined -- TODO: InputEl accessor
+    castResponse = undefined -- TODO: cast response type
