@@ -24,7 +24,7 @@
 --
 -- In dev mode (jsaddle-warp), the frontend runs on the server and
 -- communicates with the browser via WebSocket.
-module Jenga.Backend
+module Jenga.Backend.Servant
   ( -- * Backend type
     Backend(..)
   , BackendConfig(..)
@@ -49,6 +49,10 @@ module Jenga.Backend
     -- * Serving
   , serveStaticAssets
   , serveDefaultJengaApp
+
+    -- * Servant-Snap (re-exported)
+  , serveSnap
+  , serveSnapWithContext
   ) where
 
 import           Control.Monad.IO.Class (MonadIO, liftIO)
@@ -70,6 +74,7 @@ import qualified Snap.Util.FileServe as Snap
 
 import           Jenga.Route (HasRoute(..), PageName, urlToSegments)
 import           Jenga.Frontend (Frontend(..), renderFrontendHtml)
+import           Servant.Server (serveSnap, serveSnapWithContext)
 
 -- ─── Types ─────────────────────────────────────────────────────
 
@@ -174,15 +179,16 @@ runBackendWith cfg backend = do
       , ("landing", serveStaticDir (StaticAssets "landing-page" "landing-page"))
       ]
       -- Fallback: SSR the frontend for all other routes
-      <|> serveFrontendRoute configs backend
+      <|> serveFrontendRoute cfg configs backend
 
 -- | Serve a frontend route via SSR.
 serveFrontendRoute
   :: forall api r. HasRoute api r
-  => Map Text ByteString
+  => BackendConfig
+  -> Map Text ByteString
   -> Backend api r
   -> Snap ()
-serveFrontendRoute configs backend = do
+serveFrontendRoute cfg configs backend = do
   -- Parse the URL
   pageName <- getPageName
   let (segs, qparams) = pageName
@@ -193,15 +199,22 @@ serveFrontendRoute configs backend = do
   -- Read cookies from the request
   cookies <- fmap (\c -> (cookieName c, cookieValue c)) <$> getsRequest rqCookies
 
-  -- Render the frontend HTML (SSR)
-  html <- liftIO $ renderFrontendHtml
+  -- Render the frontend HTML (SSR) and inject the JS/WASM bundle script
+  htmlBase <- liftIO $ renderFrontendHtml
     configs
     cookies
     (encodeRoute @api)
     currentRoute
     (_backend_frontend backend)
-    (pure ())  -- headExtra: could add preload link
-    (pure ())  -- bodyExtra: could add script tag
+    (pure ())  -- headExtra
+    (pure ())  -- bodyExtra
+  -- Inject the frontend script tag before </body>
+  let scriptTag = T.encodeUtf8 (_ghcjsWidgets_script (_backendConfig_ghcjsWidgets cfg))
+      html = BS.concat
+        [ BS.take (BS.length htmlBase - 14) htmlBase  -- everything before </body></html>
+        , scriptTag
+        , "</body></html>"
+        ]
 
   -- Serve the response
   modifyResponse $ setContentType "text/html; charset=utf-8"
@@ -225,7 +238,8 @@ serveStaticAssets assets _path =
 -- | Serve the default jenga app with standard asset configuration.
 serveDefaultJengaApp
   :: HasRoute api r
-  => Map Text ByteString
+  => BackendConfig
+  -> Map Text ByteString
   -> Backend api r
   -> Snap ()
 serveDefaultJengaApp = serveFrontendRoute
