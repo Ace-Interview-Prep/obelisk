@@ -16,3 +16,11 @@ static/result
 result
 skeleton/static/generated/
 staticSite/src/*.html
+
+# backend runtime logs
+backend/log/
+
+# android build + runtime artifacts
+android/.gradle/
+android/app/build/
+android/app/src/main/assets/frontend/
