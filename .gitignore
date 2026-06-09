@@ -16,3 +16,6 @@ cabal.project.local
 # HLS specific files
 #lib/cabal.project
 lib/cabal.project.local
+
+# Claude Code local state
+.claude/

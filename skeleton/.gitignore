@@ -22,5 +22,6 @@ backend/log/
 
 # android build + runtime artifacts
 android/.gradle/
+android/build/
 android/app/build/
 android/app/src/main/assets/frontend/
