@@ -17,7 +17,7 @@ Contributions and issue reports are encouraged and appreciated!
     - [In the Changelog](#in-the-changelog)
     - [In the Readme](#in-the-readme)
 - [Development Environment](#development-environment)
-  - [Working on obelisk libraries](#working-on-obelisk-libraries)
+  - [Working on Jenga libraries](#working-on-jenga-libraries)
   - [Testing with the skeleton](#testing-with-the-skeleton)
 
 ## Opening Issues
@@ -90,21 +90,21 @@ The readme is the first place a lot of people look for information about the rep
 
 ## Development Environment
 
-### Working on obelisk libraries
+### Working on Jenga libraries
 
-Enter the skeleton's nix shell to get a development environment with all obelisk libraries available:
+Enter the skeleton's nix shell to get a development environment with all Jenga libraries available:
 
 ```bash
 cd skeleton
 nix-shell  # or: nix develop 'git+file:.?submodules=1'
 ```
 
-From within the shell, uncomment the obelisk `optional-packages` stanzas in `cabal.project` to develop obelisk libraries alongside the skeleton:
+From within the shell, uncomment the Jenga `optional-packages` stanzas in `cabal.project` to develop Jenga libraries alongside the skeleton:
 
 ```cabal
 optional-packages:
-  deps/obelisk/lib/*
-  deps/obelisk/lib/*/*
+  deps/jenga/lib/*
+  deps/jenga/lib/*/*
 ```
 
 Then use `ob-run` for live feedback, or `ob-repl` for a REPL:
@@ -116,7 +116,7 @@ ob-repl      # REPL with optimizations disabled
 
 ### Testing with the skeleton
 
-The skeleton serves as the integration test for obelisk. To verify your changes work end-to-end:
+The skeleton serves as the integration test for Jenga. To verify your changes work end-to-end:
 
 ```bash
 cd skeleton

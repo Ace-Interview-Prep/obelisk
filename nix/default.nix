@@ -4,11 +4,15 @@ let lib = import ./lib.nix { inherit system; };
 
     nix-haskell = import ../deps/nix-haskell { inherit system; };
 
+    pkgs = import ../deps/nix-haskell/pins/nixpkgs { inherit system; };
+
     module = import ./module.nix;
 
 in lib // {
   inherit module;
   inherit (lib) extraCabalProject serverModule;
+
+  inherit (lib) jenga jenga-command-pkg;
 
   project = userModule:
     let eval = nix-haskell {
@@ -28,8 +32,8 @@ in lib // {
       nixpkgs = eval.nixpkgs;
 
       exe = {
-        wasm = (proj.override { obelisk.frontend.target = "wasm"; }).hsPkgs.backend.components.exes.backend;
-        js = (proj.override { obelisk.frontend.target = "js"; }).hsPkgs.backend.components.exes.backend;
+        wasm = (proj.override { jenga.frontend.target = "wasm"; }).hsPkgs.backend.components.exes.backend;
+        js = (proj.override { jenga.frontend.target = "js"; }).hsPkgs.backend.components.exes.backend;
       };
 
       inherit serverExe;
@@ -45,7 +49,7 @@ in lib // {
           inherit system;
           configuration = {
             imports = [ lib.serverModule ];
-            services.obelisk = { enable = true; } // args;
+            services.jenga = { enable = true; } // args;
           };
         };
     };

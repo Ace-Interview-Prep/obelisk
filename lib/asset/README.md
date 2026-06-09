@@ -1,7 +1,7 @@
-# obelisk-asset
+# jenga-asset
 
 [![Haskell Programming Language](https://img.shields.io/badge/language-Haskell-blue.svg)](http://www.haskell.org)
-[![BSD3 License](http://img.shields.io/badge/license-BSD3-brightgreen.svg)](https://github.com/obsidiansystems/obelisk/blob/master/LICENSE)
+[![BSD3 License](http://img.shields.io/badge/license-BSD3-brightgreen.svg)](https://github.com/TypifyDev/obelisk/blob/master/LICENSE)
 
 **Efficiently served, aggressively cached static web resources.**
 

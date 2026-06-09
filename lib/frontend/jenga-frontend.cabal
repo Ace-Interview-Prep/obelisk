@@ -1,0 +1,29 @@
+name: jenga-frontend
+version: 0.1
+cabal-version: >= 1.2
+build-type: Simple
+
+library
+  hs-source-dirs: src
+  build-depends: base,
+                 bytestring,
+                 containers,
+                 cookie,
+                 dependent-sum,
+                 ghcjs-dom,
+                 jsaddle,
+                 lens,
+                 mtl,
+                 jenga-executable-config-inject,
+                 jenga-executable-config-lookup,
+                 jenga-route,
+                 primitive,
+                 ref-tf,
+                 reflex,
+                 reflex-dom-core,
+                 text,
+                 transformers
+  exposed-modules:
+    Jenga.Frontend
+    Jenga.Frontend.Cookie
+  ghc-options: -Wall -Werror -Wredundant-constraints -Wincomplete-uni-patterns -Wincomplete-record-updates -O

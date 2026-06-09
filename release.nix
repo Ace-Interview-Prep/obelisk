@@ -2,7 +2,7 @@
 
 let skeleton = import ./skeleton { inherit system; };
 
-in skeleton.nixpkgs.linkFarm "obelisk-release" [
+in skeleton.nixpkgs.linkFarm "jenga-release" [
   { name = "shell"; path = skeleton.shell; }
   { name = "serverExe-wasm"; path = skeleton.serverExe.wasm; }
   { name = "serverExe-js"; path = skeleton.serverExe.js; }

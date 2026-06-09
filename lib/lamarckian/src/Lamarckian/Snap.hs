@@ -9,7 +9,7 @@ import qualified Data.ByteString as BS
 serveCompressed :: MonadSnap m => FilePath -> m ()
 serveCompressed = serveFileIfExistsAs "text/html; charset=utf-8"
 
--- | From Obelisk, we just dont want to force a dep
+-- | From Jenga, we just dont want to force a dep
 -- | Like 'serveFileIfExists', but with a given MIME type
 serveFileIfExistsAs :: MonadSnap m => BS.ByteString -> FilePath -> m ()
 serveFileIfExistsAs mimeType f = do

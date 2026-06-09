@@ -1,0 +1,69 @@
+Name: jenga-asset-manifest
+Version: 0.1
+Synopsis: Project Synopsis Here
+Description: Project Description Here
+License: BSD3
+Author: Obsidian Systems LLC
+Maintainer: maintainer@obsidian.systems
+Stability: Experimental
+Category: Web
+Build-type: Simple
+Cabal-version: >= 1.10
+
+library
+  default-language: Haskell2010
+  hs-source-dirs: src
+
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , deepseq
+    , directory
+    , SHA
+    , filepath
+    , template-haskell
+    , text
+    , th-abstraction >= 0.4
+    , transformers
+    , unix-compat
+    , vector
+  exposed-modules:
+    Jenga.Asset.Cabal
+    Jenga.Asset.Gather
+    Jenga.Asset.Promoted
+    Jenga.Asset.Symlink
+    Jenga.Asset.TH
+
+  other-extensions: TemplateHaskell
+  ghc-options:
+    -Wall -Werror -Wredundant-constraints -Wincomplete-uni-patterns -Wincomplete-record-updates -O2
+    -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto-calls
+
+  if arch(javascript) || arch(wasm32)
+    buildable: False
+
+executable jenga-asset-manifest-generate
+  default-language: Haskell2010
+  hs-source-dirs: src-bin
+  main-is: generate.hs
+  build-depends:
+      base
+    , jenga-asset-manifest
+    , text
+
+  if arch(javascript) || arch(wasm32)
+    buildable: False
+
+executable jenga-asset-th-generate
+  default-language: Haskell2010
+  hs-source-dirs: src-bin
+  main-is: static-th.hs
+  build-depends:
+      base
+    , jenga-asset-manifest
+    , filepath
+    , text
+
+  if arch(javascript) || arch(wasm32)
+    buildable: False

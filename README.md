@@ -1,21 +1,22 @@
-# Obelisk
+# Jenga
 
 [![Haskell Programming Language](https://img.shields.io/badge/language-Haskell-blue.svg)](http://www.haskell.org)
-[![BSD3 License](http://img.shields.io/badge/license-BSD3-brightgreen.svg)](https://github.com/obsidiansystems/obelisk/blob/master/LICENSE)
+[![BSD3 License](http://img.shields.io/badge/license-BSD3-brightgreen.svg)](https://github.com/TypifyDev/obelisk/blob/master/LICENSE)
 
-<p align="center"><img src="docs/obelisk-logo-640.png" width="50%" alt="Obelisk Logo"></p>
+<p align="center"><img src="docs/jenga-logo-640.png" width="50%" alt="Jenga Logo"></p>
 
-Functional reactive web and mobile applications, with batteries included. Obelisk's goal is to represent a cohesive, highly-curated set of choices that [Obsidian Systems](https://obsidian.systems/) has made for building these types of applications in a way that is extremely fast but does not compromise on production readiness.
+Functional reactive web and mobile applications, with batteries included. Jenga's goal is to represent a cohesive, highly-curated set of choices that [Obsidian Systems](https://obsidian.systems/) has made for building these types of applications in a way that is extremely fast but does not compromise on production readiness.
 Supports both WASM and GHCJS frontend targets, GHC 9.14, and deploys to NixOS servers or OCI containers.
 
 - [Overview](#overview)
   - [Who should consider using it?](#who-should-consider-using-it)
+- [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [Development](#development)
-  - [ob-run](#ob-run)
-  - [ob-repl](#ob-repl)
-  - [ob-hoogle](#ob-hoogle)
+  - [ob run](#ob-run)
+  - [ob repl](#ob-repl)
+  - [ob hoogle](#ob-hoogle)
 - [Nix Module System](#nix-module-system)
   - [project.nix](#projectnix)
   - [Adding packages](#adding-packages)
@@ -23,6 +24,7 @@ Supports both WASM and GHCJS frontend targets, GHC 9.14, and deploys to NixOS se
   - [Options](#options)
 - [Building](#building)
 - [Deployment](#deployment)
+  - [ob deploy](#ob-deploy)
   - [NixOS Server](#nixos-server)
   - [OCI Container](#oci-container)
   - [Native Apps](#native-apps)
@@ -30,30 +32,62 @@ Supports both WASM and GHCJS frontend targets, GHC 9.14, and deploys to NixOS se
 
 ## Overview
 
-Obelisk allows you to build high-quality web and mobile applications very quickly using [Reflex](https://reflex-frp.org/). In minutes you can go from an empty directory to an interactive application that works on web, iOS, and Android, all sharing the same Haskell codebase! Obelisk's development environment also enables extremely rapid development and feedback. You can take advantage of Haskell's type system across the frontend and backend boundary. This means changes to your backend that would break your frontend are immediately detected during development and vice versa. Obelisk uses Haskell's compiler to give you a complete "TODO list" of what needs to be updated.
+Jenga allows you to build high-quality web and mobile applications very quickly using [Reflex](https://reflex-frp.org/). In minutes you can go from an empty directory to an interactive application that works on web, iOS, and Android, all sharing the same Haskell codebase! Jenga's development environment also enables extremely rapid development and feedback. You can take advantage of Haskell's type system across the frontend and backend boundary. This means changes to your backend that would break your frontend are immediately detected during development and vice versa. Jenga uses Haskell's compiler to give you a complete "TODO list" of what needs to be updated.
 
-Obelisk is targeted primarily at Haskell developers who want to build high-quality web and/or mobile applications in Haskell, without the distractions of manually choosing and integrating technology for every piece of the system.
+Jenga is targeted primarily at Haskell developers who want to build high-quality web and/or mobile applications in Haskell, without the distractions of manually choosing and integrating technology for every piece of the system.
 
 ### Who should consider using it?
 
-Obelisk assumes basic knowledge of [Haskell](https://www.haskell.org/) and [Reflex/Reflex-DOM](https://reflex-frp.org/), web technologies like [HTML](https://developer.mozilla.org/en-US/docs/Web/HTML) and [CSS](https://developer.mozilla.org/en-US/docs/Web/CSS), and a terminal shell like [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)). Knowledge of [Nix](https://nixos.org/) helps but is not strictly necessary.
+Jenga assumes basic knowledge of [Haskell](https://www.haskell.org/) and [Reflex/Reflex-DOM](https://reflex-frp.org/), web technologies like [HTML](https://developer.mozilla.org/en-US/docs/Web/HTML) and [CSS](https://developer.mozilla.org/en-US/docs/Web/CSS), and a terminal shell like [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)). Knowledge of [Nix](https://nixos.org/) helps but is not strictly necessary.
+
+## Installation
+
+### One-liner (no clone required)
+
+Create a new project directly from the remote repository:
+
+```bash
+nix-shell -p '(import (fetchTarball "https://github.com/TypifyDev/obelisk/archive/next.tar.gz") {}).jenga-command-pkg' --run 'ob init my-app'
+```
+
+### System-wide via NixOS
+
+Add `ob` to your `configuration.nix`:
+
+```nix
+let jenga = import (builtins.fetchGit {
+      url = "https://github.com/TypifyDev/obelisk";
+      ref = "next";
+    }) { system = "x86_64-linux"; };
+in {
+  environment.systemPackages = [ jenga.jenga-command-pkg ];
+}
+```
+
+Then create projects from anywhere: `ob init my-app`
+
+### From a local clone
+
+```bash
+git clone https://github.com/TypifyDev/obelisk
+cd jenga
+nix-shell -p '(import ./nix {}).jenga-command-pkg' --run 'ob init my-app'
+```
 
 ## Quick Start
 
-Start from the skeleton or use it as a reference for your own project:
-
 ```bash
-cp -r deps/obelisk/skeleton my-app
+ob init my-app        # or any installation method above
 cd my-app
-nix-shell  # or: nix develop 'git+file:.?submodules=1'
-ob-run
+nix-shell             # or: nix develop 'git+file:.?submodules=1'
+ob run
 ```
 
 Open http://localhost:8000 in your browser.
 
 ## Project Structure
 
-A typical obelisk project:
+A typical Jenga project:
 
 ```
 my-app/
@@ -64,7 +98,7 @@ my-app/
     wasm/              # WASM cross-compilation wrapper
   static/              # Static assets (css, images, etc.)
     generate           # Static assets generation script
-    generated/         # Generated static module (obelisk-generated-static)
+    generated/         # Generated static module (jenga-generated-static)
       custom/          # Custom Setup.hs for static manifest generation
   cabal.project        # Cabal project file
   project.nix          # Nix-haskell project configuration
@@ -80,59 +114,56 @@ Enter the nix shell to get all build tools (GHC, cabal, cross-compilers, hoogle)
 nix-shell  # or: nix develop 'git+file:.?submodules=1'
 ```
 
-### ob-run
+### ob run
 
 Watch-and-rebuild development server. Rebuilds the backend on `.hs`, `.cabal`, or `.project` file changes, or when you press Enter:
 
 ```bash
-ob-run
+ob run
 ```
 
 Disables optimizations (`-O0`) for fast rebuilds. Cross-compiles the frontend (WASM by default) in the background during each build via the backend's custom Setup.hs.
 
-### ob-repl
+### ob repl
 
 Start a REPL with optimizations disabled:
 
 ```bash
-ob-repl              # loads backend, common, frontend
-ob-repl lib:common   # load specific target
+ob repl              # loads backend, common, frontend
+ob repl lib:common   # load specific target
 ```
 
-### ob-hoogle
+### ob hoogle
 
 Local Hoogle documentation server:
 
 ```bash
-ob-hoogle start      # starts on port 8080
-ob-hoogle stop
-ob-hoogle restart
+ob hoogle            # starts on port 8080
+ob hoogle -p 9090    # custom port
 ```
-
-Automatically stopped when exiting the nix shell.
 
 ## Nix Module System
 
-Obelisk uses a [nix-haskell](https://github.com/reflex-frp/nix-haskell) module that declares all build configuration as NixOS-style options.
+Jenga uses a [nix-haskell](https://github.com/reflex-frp/nix-haskell) module that declares all build configuration as NixOS-style options.
 
 ### project.nix
 
-See [`docs/module.md`](docs/module.md) for obelisk-specific options and [`docs/nix-haskell`](docs/nix-haskell) for the full nix-haskell module documentation.
+See [`docs/module.md`](docs/module.md) for Jenga-specific options and [`docs/nix-haskell`](docs/nix-haskell) for the full nix-haskell module documentation.
 
 ```nix
-{ pkgs, obeliskLib, ... }:
+{ pkgs, jengaLib, ... }:
 {
   name = "my-app";
   src = ./.;
 
-  # Obelisk libraries provided as source-repository-packages
-  inherit (obeliskLib) source-repository-packages;
+  # Jenga libraries provided as source-repository-packages
+  inherit (jengaLib) source-repository-packages;
 
   # Static assets path (hashed + compressed automatically)
-  obelisk.static.path = import ./static { inherit pkgs; };
+  jenga.static.path = import ./static { inherit pkgs; };
 
   # Frontend target: "wasm" (default) or "js"
-  # obelisk.frontend.target = "wasm";
+  # jenga.frontend.target = "wasm";
 
   shell = {
     crossPlatforms = ps: with ps; [ ghcjs wasi32 ];
@@ -206,13 +237,13 @@ Key module options (see [`docs/module.md`](docs/module.md) for full reference):
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `obelisk.static.path` | `null` | Static assets path or derivation |
-| `obelisk.static.compress` | `true` | Compress with brotli + gzip |
-| `obelisk.frontend.target` | `"wasm"` | `"wasm"` or `"js"` |
-| `obelisk.frontend.js.optimization.enable` | `true` | Run closure-compiler |
-| `obelisk.frontend.js.optimization.level` | `"ADVANCED"` | Closure optimization level |
-| `obelisk.frontend.wasm.optimization.enable` | `true` | Run wasm-opt |
-| `obelisk.frontend.wasm.optimization.level` | `"2"` | wasm-opt -O level |
+| `jenga.static.path` | `null` | Static assets path or derivation |
+| `jenga.static.compress` | `true` | Compress with brotli + gzip |
+| `jenga.frontend.target` | `"wasm"` | `"wasm"` or `"js"` |
+| `jenga.frontend.js.optimization.enable` | `true` | Run closure-compiler |
+| `jenga.frontend.js.optimization.level` | `"ADVANCED"` | Closure optimization level |
+| `jenga.frontend.wasm.optimization.enable` | `true` | Run wasm-opt |
+| `jenga.frontend.wasm.optimization.level` | `"2"` | wasm-opt -O level |
 
 ## Building
 
@@ -242,9 +273,30 @@ The nix shell is not strictly required, if you have `wasm32-unknown-wasi-cabal` 
 
 ## Deployment
 
+### ob-deploy
+
+`ob deploy` builds a NixOS system closure, copies it to remote hosts, and activates it over SSH.
+
+```bash
+# Initialize a deployment staging directory
+ob deploy init my-deploy
+
+# Edit configuration
+vim my-deploy/config/route_host       # your domain
+vim my-deploy/config/admin_email      # ACME email
+vim my-deploy/hosts                   # target host(s)
+cp ~/.ssh/id_ed25519 my-deploy/secrets/ssh_key
+chmod 600 my-deploy/secrets/ssh_key
+
+# Deploy
+ob deploy push my-deploy
+```
+
+The staging directory is separate from your project (SSH keys stay out of your repo). `push` resolves the current branch to a git rev, builds the NixOS system, transfers via `nix-copy-closure`, syncs config via `rsync`, and activates with kernel change detection (switch vs reboot).
+
 ### NixOS Server
 
-Import the obelisk server module in your NixOS configuration:
+For manual NixOS configuration (without `ob deploy`), import the server module directly:
 
 ```nix
 { config, ... }:
@@ -253,12 +305,12 @@ let
 in {
   imports = [ app.serverModule ];
 
-  services.obelisk = {
+  services.jenga = {
     enable = true;
     exe = app.serverExe.wasm;
-    domain = "myapp.example.com";
-    https.enable = true;
-    https.adminEmail = "admin@example.com";
+    routeHost = "myapp.example.com";
+    enableHttps = true;
+    adminEmail = "admin@example.com";
   };
 }
 ```
@@ -287,13 +339,7 @@ Other options include [Tauri](https://tauri.app/) for desktop and [ElectronJS](h
 
 ## Skeleton
 
-The `skeleton/` directory provides a minimal project template. Copy it and modify to create a new project:
-
-```bash
-cp -r obelisk/skeleton my-new-app
-cd my-new-app
-# Edit project.nix, backend/src/Backend.hs, frontend/src/Frontend.hs, etc.
-```
+The `skeleton/` directory provides a minimal project template. Use `ob init` to create a new project from it (see [Installation](#installation)).
 
 The skeleton includes:
 - Backend with Snap server and asset serving

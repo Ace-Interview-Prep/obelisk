@@ -1,18 +1,18 @@
-# nix-haskell module that wires obelisk overrides into a project.
-# Declares `obelisk.static`, `obelisk.frontend.js`, and `obelisk.frontend.wasm` options;
-# `obelisk.frontend.target` selects which pipeline feeds the backend.
+# nix-haskell module that wires Jenga overrides into a project.
+# Declares `jenga.static`, `jenga.frontend.js`, and `jenga.frontend.wasm` options;
+# `jenga.frontend.target` selects which pipeline feeds the backend.
 { config, lib, pkgs, system, nix-haskell-patches, ... }:
 
-let obeliskLib = import ./lib.nix { inherit system; };
+let jengaLib = import ./lib.nix { inherit system; };
 
     assets = import ./assets.nix { nixpkgs = pkgs; };
 
     # Merge singular path (at root) with named paths (as subdirs).
     allStaticPaths =
-      (lib.optionalAttrs (config.obelisk.static.path != null) {
-        "" = config.obelisk.static.path;
+      (lib.optionalAttrs (config.jenga.static.path != null) {
+        "" = config.jenga.static.path;
       })
-      // config.obelisk.static.paths;
+      // config.jenga.static.paths;
 
     rawStatic = if allStaticPaths == {} then null
       else if allStaticPaths ? "" && builtins.length (builtins.attrNames allStaticPaths) == 1
@@ -32,21 +32,21 @@ let obeliskLib = import ./lib.nix { inherit system; };
         LANG = "en_US.UTF-8";
         LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive";
       } ''
-        ${obeliskLib.obelisk-asset-manifest-generate} --module-only ${rawStatic} "$TMPDIR" Obelisk.Generated.Static $out
+        ${jengaLib.jenga-asset-manifest-generate} --module-only ${rawStatic} "$TMPDIR" Jenga.Generated.Static $out
       ''
       else null;
 
-    static = config.obelisk.static.compressed;
+    static = config.jenga.static.compressed;
 
-    frontendJs = config.obelisk.frontend.js.package;
+    frontendJs = config.jenga.frontend.js.package;
 
-    frontendWasm = config.obelisk.frontend.wasm.package;
+    frontendWasm = config.jenga.frontend.wasm.package;
 
     # Select which frontend pipeline feeds the backend based on target.
     frontendOutput =
-      if config.obelisk.frontend.target == "wasm"
-      then { inherit (config.obelisk.frontend.wasm) optimized compressed; }
-      else { inherit (config.obelisk.frontend.js) optimized compressed; };
+      if config.jenga.frontend.target == "wasm"
+      then { inherit (config.jenga.frontend.wasm) optimized compressed; }
+      else { inherit (config.jenga.frontend.js) optimized compressed; };
 
     compressedFrontendJs = frontendOutput.compressed;
 
@@ -55,7 +55,7 @@ in {
     "${nix-haskell-patches}/js/splitmix"
   ];
 
-  options.obelisk = {
+  options.jenga = {
     static = {
       path = lib.mkOption {
         type = lib.types.nullOr (lib.types.either lib.types.path lib.types.package);
@@ -69,7 +69,7 @@ in {
         description = ''
           Named static asset directories. Each value is a path or derivation.
           Keys become subdirectory prefixes in the merged output.
-          Use alongside obelisk.static.path (which merges at root level).
+          Use alongside jenga.static.path (which merges at root level).
         '';
       };
 
@@ -83,7 +83,7 @@ in {
         type = lib.types.nullOr lib.types.package;
         # Skip in nix-shell to avoid triggering asset generation.
         default = if lib.inNixShell then null
-          else if hashedStatic != null && config.obelisk.static.compress
+          else if hashedStatic != null && config.jenga.static.compress
             then assets.mkAssets hashedStatic
             else hashedStatic;
         defaultText = lib.literalExpression "assets.mkAssets hashedStatic";
@@ -101,8 +101,8 @@ in {
       package = lib.mkOption {
         type = lib.types.nullOr lib.types.package;
         # Skip in nix-shell to avoid triggering cross-compilation builds.
-        default = if lib.inNixShell then null else obeliskLib.frontendJs config;
-        defaultText = lib.literalExpression "obeliskLib.frontendJs config";
+        default = if lib.inNixShell then null else jengaLib.frontendJs config;
+        defaultText = lib.literalExpression "jengaLib.frontendJs config";
         description = "GHCJS-compiled frontend derivation.";
       };
 
@@ -135,7 +135,7 @@ in {
       optimized = lib.mkOption {
         type = lib.types.nullOr lib.types.package;
         default =
-          let opt = config.obelisk.frontend.js.optimization;
+          let opt = config.jenga.frontend.js.optimization;
               externFlags = map (e: "--externs ${e}") opt.externs;
               flags = lib.concatStringsSep " " ([
                 "--language_in" "UNSTABLE"
@@ -166,20 +166,20 @@ in {
 
       compress = lib.mkOption {
         type = lib.types.bool;
-        default = config.obelisk.static.compress;
+        default = config.jenga.static.compress;
         description = "Whether to compress frontend JS with brotli/gzip.";
       };
 
       compressed = lib.mkOption {
         type = lib.types.nullOr lib.types.package;
         default =
-          let jsexe = config.obelisk.frontend.js.optimized;
+          let jsexe = config.jenga.frontend.js.optimized;
           in if jsexe == null then null
-            else if config.obelisk.frontend.js.compress
+            else if config.jenga.frontend.js.compress
             then assets.mkAssets jsexe
             else jsexe;
         defaultText = lib.literalExpression "assets.mkAssets optimized";
-        description = "Compressed frontend jsexe for obelisk-asset-serve-snap.";
+        description = "Compressed frontend jsexe for jenga-asset-serve-snap.";
       };
     };
 
@@ -187,8 +187,8 @@ in {
       package = lib.mkOption {
         type = lib.types.nullOr lib.types.package;
         # Skip in nix-shell to avoid triggering cross-compilation builds.
-        default = if lib.inNixShell then null else obeliskLib.frontendWasm config;
-        defaultText = lib.literalExpression "obeliskLib.frontendWasm config";
+        default = if lib.inNixShell then null else jengaLib.frontendWasm config;
+        defaultText = lib.literalExpression "jengaLib.frontendWasm config";
         description = "WASM-compiled frontend derivation.";
       };
 
@@ -215,7 +215,7 @@ in {
       optimized = lib.mkOption {
         type = lib.types.nullOr lib.types.package;
         default =
-          let opt = config.obelisk.frontend.wasm.optimization;
+          let opt = config.jenga.frontend.wasm.optimization;
               wasmBin = "${frontendWasm}/bin/frontend.wasm";
               ghc = config.haskell-nix.project.projectCross.wasi32.pkg-set.config.ghc.package;
               flags = lib.concatStringsSep " " ([ "-all" "-O${opt.level}" ] ++ opt.extraFlags);
@@ -239,7 +239,7 @@ in {
 
               # Assemble jsexe directory
               cp ${./wasm/shim.js} $out/all.js
-              cp ${obeliskLib.wasi-shim}/dist/*.js $out/
+              cp ${jengaLib.wasi-shim}/dist/*.js $out/
               mv $out/index.js $out/wasi-shim.js
             '';
         defaultText = lib.literalExpression "wasm-opt + post-link.mjs";
@@ -248,89 +248,71 @@ in {
 
       compress = lib.mkOption {
         type = lib.types.bool;
-        default = config.obelisk.static.compress;
+        default = config.jenga.static.compress;
         description = "Whether to compress frontend WASM with brotli/gzip.";
       };
 
       compressed = lib.mkOption {
         type = lib.types.nullOr lib.types.package;
         default =
-          let jsexe = config.obelisk.frontend.wasm.optimized;
+          let jsexe = config.jenga.frontend.wasm.optimized;
           in if jsexe == null then null
-            else if config.obelisk.frontend.wasm.compress
+            else if config.jenga.frontend.wasm.compress
             then assets.mkAssets jsexe
             else jsexe;
         defaultText = lib.literalExpression "assets.mkAssets optimized";
-        description = "Compressed WASM frontend for obelisk-asset-serve-snap.";
+        description = "Compressed WASM frontend for jenga-asset-serve-snap.";
       };
     };
   };
 
   config = {
-    _module.args.obeliskLib = obeliskLib;
+    _module.args.jengaLib = jengaLib;
 
-    inherit (obeliskLib) extraCabalProject;
+    inherit (jengaLib) extraCabalProject;
     # source-repository-packages disabled; using optional-packages in cabal.project instead.
-    # inherit (obeliskLib) source-repository-packages;
+    # inherit (jengaLib) source-repository-packages;
 
     compiler-nix-name = lib.mkDefault "ghc914";
 
     overrides = [
-      obeliskLib.buildTypeOverride
-      obeliskLib.jsexeOverride
-      (obeliskLib.frontendDataOverride { static = hashedStatic; compressedStatic = static; })
-      (obeliskLib.backendDataOverride {
+      jengaLib.buildTypeOverride
+      jengaLib.jsexeOverride
+      (jengaLib.frontendDataOverride { static = hashedStatic; compressedStatic = static; })
+      (jengaLib.backendDataOverride {
         static = hashedStatic;
         compressedStatic = static;
         frontendJs = frontendOutput.optimized;
         inherit compressedFrontendJs;
       })
-      (obeliskLib.staticManifestOverride { static = rawStatic; })
+      (jengaLib.staticManifestOverride { static = rawStatic; })
     ];
 
     shell.nativeBuildInputs = [
       pkgs.haskellPackages.ghcid
-      (pkgs.writeShellApplication {
-        name = "ob-run";
-        text = builtins.readFile ../scripts/ob-run;
-      })
-      (pkgs.writeShellApplication {
-        name = "ob-repl";
-        text = builtins.readFile ../scripts/ob-repl;
-      })
-      (pkgs.writeShellApplication {
-        name = "ob-hoogle";
-        text = builtins.readFile ../scripts/ob-hoogle;
-      })
+      jengaLib.jenga-command-pkg
     ];
 
     shell.shellHook = ''
-      export OBELISK_WASI_SHIM="${obeliskLib.wasi-shim}"
+      export JENGA_WASI_SHIM="${jengaLib.wasi-shim}"
 
       echo ""
-      echo "=== ob-run ==="
+      echo "=== jenga ==="
       echo ""
-      ob-run --help
+      jenga --help
       echo ""
-      echo "=== ob-repl ==="
+      echo "=== jenga run ==="
       echo ""
-      ob-repl --help
+      jenga run --help
       echo ""
-      echo "=== ob-hoogle ==="
+      echo "=== jenga repl ==="
       echo ""
-      ob-hoogle --help
+      jenga repl --help
       echo ""
-
-      export HOOGLE_PIDFILE="''${TMPDIR:-/tmp}/ob-hoogle.pid"
-      HOOGLE_REFSFILE="''${TMPDIR:-/tmp}/ob-hoogle.refs"
-      echo $$ >> "$HOOGLE_REFSFILE"
-      trap '
-        sed -i "/^'$$'$/d" "$HOOGLE_REFSFILE"
-        if [ ! -s "$HOOGLE_REFSFILE" ] && [ -f "$HOOGLE_PIDFILE" ]; then
-          kill "$(cat "$HOOGLE_PIDFILE")" 2>/dev/null
-          rm -f "$HOOGLE_PIDFILE" "$HOOGLE_REFSFILE"
-        fi
-      ' EXIT
+      echo "=== jenga hoogle ==="
+      echo ""
+      jenga hoogle --help
+      echo ""
     '';
   };
 }

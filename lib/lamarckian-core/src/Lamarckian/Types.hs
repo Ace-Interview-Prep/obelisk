@@ -11,7 +11,7 @@
 -- via @renderStatic@. It runs under GHC only (not GHCJS).
 module Lamarckian.Types where
 
-import Obelisk.Route.Frontend
+import Jenga.Route.Frontend
 import Reflex.Dom.Core
 import Control.Monad.Trans.Reader
 import qualified Data.Map as Map
@@ -91,7 +91,7 @@ data StaticSite r = StaticSite
   { _staticSite_baseWritableFolder :: FilePath
   -- ^ the prefix not included in staticFilePath's argument
   , _staticSite_staticFilePath  :: FilePath -> CompiledFilePath
-  -- ^ Your obelisk generated staticFilePath function
+  -- ^ Your Jenga generated staticFilePath function
   , _staticSite_routeEncoder :: R r -> URL
   -- ^ In the simplest of cases, this is just simply rendering the route
   -- ie. (<rendered-route>|"root" if nothing).html

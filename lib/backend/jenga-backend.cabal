@@ -1,0 +1,33 @@
+name: jenga-backend
+version: 0.1
+cabal-version: >= 1.2
+build-type: Simple
+
+library
+  hs-source-dirs: src
+  build-depends: base,
+                 bytestring,
+                 categories,
+                 containers,
+                 cookie,
+                 data-default,
+                 dependent-sum,
+                 dependent-sum-template,
+                 lens,
+                 mtl,
+                 jenga-asset-serve-snap,
+                 jenga-executable-config-inject,
+                 jenga-executable-config-lookup,
+                 jenga-frontend,
+                 jenga-route,
+                 jenga-snap-extras,
+                 reflex-dom-core,
+                 snap,
+                 snap-server,
+                 text,
+                 universe
+  exposed-modules: Jenga.Backend
+  ghc-options: -Wall -Werror -Wredundant-constraints -Wincomplete-uni-patterns -Wincomplete-record-updates -O
+
+  if arch(javascript) || arch(wasm32)
+    buildable: False

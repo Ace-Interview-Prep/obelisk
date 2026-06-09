@@ -1,8 +1,8 @@
-# Obelisk Routing
+# Jenga Routing
 
 ## Motivation
 
-The `obelisk-route` package is designed to help with managing the paths and parameters for routing
+The `jenga-route` package is designed to help with managing the paths and parameters for routing
 in your application.
 
 Most importantly it has been designed and built to provide the following guarantees:
@@ -17,7 +17,7 @@ Every route that you declare in your types will produce a valid URL; that is, en
 decode . encode = pure
 ```
 
-Routes declared using `obelisk-route` are bidirectional, meaning that any route that can be encoded
+Routes declared using `jenga-route` are bidirectional, meaning that any route that can be encoded
 to types and matched on can also be encoded as a url *without losing information*.
 
 * **Common modifications made to routes, where ever possible, will be caught by the compiler.**
@@ -33,7 +33,7 @@ This package doesn't have a distinction between backend or frontend routes, thes
 types so their behaviour is identical. This guarantees that routes generated as part of a backend
 static rendering process will be indistinguishable from routes generated on the frontend.
 
-It may seem odd that `obelisk-route` does not provide a way to specify the HTTP Method for a given
+It may seem odd that `jenga-route` does not provide a way to specify the HTTP Method for a given
 route. This is due to the requirement that this package may be used when rendering a page on the
 backend **or** the frontend. A POST request makes no sense for the frontend of an application so we
 do not support creating this type of route. As it would be difficult to impossible to enforce if
@@ -60,9 +60,9 @@ authority = [userinfo@]host[:port]
 
 This package handles the `path` and `query` components of a URI.
 
-## Obelisk route mental model
+## Jenga route mental model
 
-The way to approach building routes with `obelisk-route` is to focus on your Route data structure.
+The way to approach building routes with `jenga-route` is to focus on your Route data structure.
 
 First, make sure it matches your application's structure: with one Route value for each logical
 page the user might want to visit.  Only once that is clear, move on to thinking about how those
@@ -80,14 +80,14 @@ structure. By composing and building routes from pieces that are so small that t
 correct", you can be confident that the composition of those individual pieces is also correct.
 
 As we build up some examples in this guide, we will demonstrate how to think about your abstract
-routes as concrete definitions using `Encoder`s. You will see that `obelisk-route` already has most
+routes as concrete definitions using `Encoder`s. You will see that `jenga-route` already has most
 of the tools you need to construct that concrete definition. We'll also cover what to do when it
 doesn't, and what you need to know to ensure that you build correct and composable pieces.
 
-#### Obelisk live development environment
+#### Jenga live development environment
 
-For a hands-on experience, work through the section you're interested in using a freshly created Obelisk application. Refer
-to the Obelisk documentation for [Developing an Obelisk project](https://github.com/obsidiansystems/obelisk#developing-an-obelisk-project).
+For a hands-on experience, work through the section you're interested in using a freshly created Jenga application. Refer
+to the Jenga documentation for [Developing a Jenga project](https://github.com/TypifyDev/obelisk#development).
 
 ## Your route as a type
 
@@ -97,7 +97,7 @@ associated with this page, so the value for our route must have only one possibl
 When it comes to how that route will present itself to the user in the address bar, it will be our
 main page and at the root of all things so it must be `/`.
 
-The routes for a Obelisk application often live in `Common.Route` and nearby modules. We will follow
+The routes for a Jenga application often live in `Common.Route` and nearby modules. We will follow
 this convention and create our type there:
 
 ```haskell
@@ -109,7 +109,7 @@ The constructor for our main page is `MyRoute_Main` with no parameters. This val
 our `case` expressions to decide what code to run and when we're creating links to this page. Be
 sure to include the deriving clause as we will need these instances.
 
-> The naming of the route MyRoute_Main is an Obelisk convention of including the type name in
+> The naming of the route MyRoute_Main is a Jenga convention of including the type name in
 > individual constructor names. This helps disambiguate the code at the 'cost' of a few extra
 > keystrokes. As an example:
 >
@@ -163,7 +163,7 @@ forall a. decode (encode a) == pure a
 
 ----
 
-Within the `Obelisk.Route` module are many pre-built `Encoder`s, the one we will use is the `enumEncoder`:
+Within the `Jenga.Route` module are many pre-built `Encoder`s, the one we will use is the `enumEncoder`:
 
 ```haskell
 enumEncoder
@@ -368,7 +368,7 @@ this often means that you are left on your own when comes to creating links for 
 there is no way to relate the structure of a route to anything. If any of those routes change it can
 be a tedious and error-prone process to find and fix all the constructed links.
 
-Obelisk routes are bidirectional, which means the `Encoder` that you create also works as a 'pattern
+Jenga routes are bidirectional, which means the `Encoder` that you create also works as a 'pattern
 match' for incoming routes. The route types operate as a type safe mechanism for _creating_ links in
 your application. It is a compile error to try to use route constructors that don't exist, and if
 you change the type of a route the application will not build until you fix that change every where
@@ -473,7 +473,7 @@ If you've not encountered GADTs before, or you're a bit rusty, check out the fol
 * [Haskellforall](http://www.haskellforall.com/2012/06/gadts.html)
 * [Haskell Wiki](https://wiki.haskell.org/Generalised_algebraic_datatype)
 
-It's not necessary to have a deep understanding of GADTs to use them with `obelisk-route`, we'll
+It's not necessary to have a deep understanding of GADTs to use them with `jenga-route`, we'll
 provide enough of information to be able to get by.
 
 ----
@@ -869,7 +869,7 @@ required inputs and the path would appear in the address bar as follows:
 ```
 
 Defining the first part of our constructor leads to an interesting question: What is the type that
-this constructor will be parameterised by? Within `obelisk-route` is the type alias `(:.)` which is
+this constructor will be parameterised by? Within `jenga-route` is the type alias `(:.)` which is
 an alias for a tuple `(,).`This allows us to express multiple possibly different types as the
 type for a route constructor. Assuming that our puzzle solutions will be an `Int` value, a `Text`
 value, and a final `Int` value, then our route is defined as:

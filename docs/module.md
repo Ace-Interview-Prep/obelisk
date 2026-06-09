@@ -1,4 +1,4 @@
-## obelisk\.frontend\.js\.package
+## jenga\.frontend\.js\.package
 
 
 
@@ -12,11 +12,11 @@ null or package
 
 
 *Default:*
-` obeliskLib.frontendJs config `
+` jengaLib.frontendJs config `
 
 
 
-## obelisk\.frontend\.js\.compress
+## jenga\.frontend\.js\.compress
 
 Whether to compress frontend JS with brotli/gzip\.
 
@@ -32,11 +32,11 @@ boolean
 
 
 
-## obelisk\.frontend\.js\.compressed
+## jenga\.frontend\.js\.compressed
 
 
 
-Compressed frontend jsexe for obelisk-asset-serve-snap\.
+Compressed frontend jsexe for jenga-asset-serve-snap\.
 
 
 
@@ -50,7 +50,7 @@ null or package
 
 
 
-## obelisk\.frontend\.js\.optimization\.enable
+## jenga\.frontend\.js\.optimization\.enable
 
 
 
@@ -68,7 +68,7 @@ boolean
 
 
 
-## obelisk\.frontend\.js\.optimization\.externs
+## jenga\.frontend\.js\.optimization\.externs
 
 
 
@@ -86,7 +86,7 @@ list of absolute path
 
 
 
-## obelisk\.frontend\.js\.optimization\.extraFlags
+## jenga\.frontend\.js\.optimization\.extraFlags
 
 
 
@@ -104,7 +104,7 @@ list of string
 
 
 
-## obelisk\.frontend\.js\.optimization\.level
+## jenga\.frontend\.js\.optimization\.level
 
 
 
@@ -122,7 +122,7 @@ one of “BUNDLE”, “WHITESPACE_ONLY”, “SIMPLE”, “TRANSPILE_ONLY”, 
 
 
 
-## obelisk\.frontend\.js\.optimized
+## jenga\.frontend\.js\.optimized
 
 
 
@@ -140,7 +140,7 @@ null or package
 
 
 
-## obelisk\.frontend\.target
+## jenga\.frontend\.target
 
 
 
@@ -158,7 +158,7 @@ one of “js”, “wasm”
 
 
 
-## obelisk\.frontend\.wasm\.package
+## jenga\.frontend\.wasm\.package
 
 
 
@@ -172,11 +172,11 @@ null or package
 
 
 *Default:*
-` obeliskLib.frontendWasm config `
+` jengaLib.frontendWasm config `
 
 
 
-## obelisk\.frontend\.wasm\.compress
+## jenga\.frontend\.wasm\.compress
 
 
 
@@ -194,11 +194,11 @@ boolean
 
 
 
-## obelisk\.frontend\.wasm\.compressed
+## jenga\.frontend\.wasm\.compressed
 
 
 
-Compressed WASM frontend for obelisk-asset-serve-snap\.
+Compressed WASM frontend for jenga-asset-serve-snap\.
 
 
 
@@ -212,7 +212,7 @@ null or package
 
 
 
-## obelisk\.frontend\.wasm\.optimization\.enable
+## jenga\.frontend\.wasm\.optimization\.enable
 
 
 
@@ -230,7 +230,7 @@ boolean
 
 
 
-## obelisk\.frontend\.wasm\.optimization\.extraFlags
+## jenga\.frontend\.wasm\.optimization\.extraFlags
 
 
 
@@ -259,7 +259,7 @@ list of string
 
 
 
-## obelisk\.frontend\.wasm\.optimization\.level
+## jenga\.frontend\.wasm\.optimization\.level
 
 
 
@@ -277,7 +277,7 @@ one of “0”, “1”, “2”, “3”, “4”, “s”, “z”
 
 
 
-## obelisk\.frontend\.wasm\.optimized
+## jenga\.frontend\.wasm\.optimized
 
 
 
@@ -295,7 +295,7 @@ null or package
 
 
 
-## obelisk\.static\.compress
+## jenga\.static\.compress
 
 
 
@@ -313,7 +313,7 @@ boolean
 
 
 
-## obelisk\.static\.compressed
+## jenga\.static\.compressed
 
 
 
@@ -331,7 +331,7 @@ null or package
 
 
 
-## obelisk\.static\.path
+## jenga\.static\.path
 
 
 

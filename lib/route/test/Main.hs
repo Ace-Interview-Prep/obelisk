@@ -51,8 +51,8 @@ import Test.Tasty.QuickCheck (testProperty)
 import Control.Applicative (liftA2)
 #endif
 
-import Obelisk.Route
-import Obelisk.Route.TH
+import Jenga.Route
+import Jenga.Route.TH
 
 data Input
   = Input_Word Word

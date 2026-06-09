@@ -8,7 +8,7 @@
 1. [How do I disable asset compression?](#how-do-i-disable-asset-compression)
 1. [How do I fix closure-compiler variable name collisions?](#how-do-i-fix-closure-compiler-variable-name-collisions)
 1. [ob-run rebuilds too much. How do I speed it up?](#ob-run-rebuilds-too-much-how-do-i-speed-it-up)
-1. [cabal can't find obelisk-setup during cross-compilation](#cabal-cant-find-obelisk-setup-during-cross-compilation)
+1. [cabal can't find jenga-setup during cross-compilation](#cabal-cant-find-jenga-setup-during-cross-compilation)
 1. [How do I cache individual build components with Nix?](#how-do-i-cache-individual-build-components-with-nix)
 
 ### How do I declare a new Haskell dependency?
@@ -78,8 +78,8 @@ In `project.nix`:
 
 ```nix
 {
-  obelisk.frontend.target = "js";   # GHCJS
-  # obelisk.frontend.target = "wasm"; # WASM (default)
+  jenga.frontend.target = "js";   # GHCJS
+  # jenga.frontend.target = "wasm"; # WASM (default)
 }
 ```
 
@@ -92,10 +92,10 @@ In `project.nix`:
 ```nix
 {
   # Disable closure-compiler for GHCJS
-  obelisk.frontend.js.optimization.enable = false;
+  jenga.frontend.js.optimization.enable = false;
 
   # Disable wasm-opt for WASM
-  obelisk.frontend.wasm.optimization.enable = false;
+  jenga.frontend.wasm.optimization.enable = false;
 }
 ```
 
@@ -105,7 +105,7 @@ In `project.nix`:
 
 ```nix
 {
-  obelisk.static.compress = false;  # disables compression for both static and frontend
+  jenga.static.compress = false;  # disables compression for both static and frontend
 }
 ```
 
@@ -113,18 +113,18 @@ Or control them independently:
 
 ```nix
 {
-  obelisk.frontend.js.compress = false;   # JS frontend only
-  obelisk.frontend.wasm.compress = false; # WASM frontend only
+  jenga.frontend.js.compress = false;   # JS frontend only
+  jenga.frontend.wasm.compress = false; # WASM frontend only
 }
 ```
 
 ### How do I fix closure-compiler variable name collisions?
 
-If your static JS files define globals that conflict with closure-compiler's output, use the `obelisk.frontend.js.optimization.externs` option to declare them:
+If your static JS files define globals that conflict with closure-compiler's output, use the `jenga.frontend.js.optimization.externs` option to declare them:
 
 ```nix
 {
-  obelisk.frontend.js.optimization.externs = [ ./externs.js ];
+  jenga.frontend.js.optimization.externs = [ ./externs.js ];
 }
 ```
 
@@ -145,9 +145,9 @@ cabal run backend -f-cross
 
 This skips the cross-compilation step entirely, useful when you're only working on backend code.
 
-### cabal can't find obelisk-setup during cross-compilation
+### cabal can't find jenga-setup during cross-compilation
 
-Packages with `build-type: Custom` and `setup-depends: obelisk-setup` (backend, frontend-js, frontend-wasm, obelisk-generated-static-custom) must be excluded from cross-compilation builds. The skeleton's `cabal.project` handles this with:
+Packages with `build-type: Custom` and `setup-depends: jenga-setup` (backend, frontend-js, frontend-wasm, jenga-generated-static-custom) must be excluded from cross-compilation builds. The skeleton's `cabal.project` handles this with:
 
 ```cabal
 if !(arch(javascript) || arch(wasm32))
@@ -159,7 +159,7 @@ if !(arch(javascript) || arch(wasm32))
     static/generated/custom
 ```
 
-If you see `unknown package: ...:setup.obelisk-setup` during a cross-build, ensure your `cabal.project` has these packages behind the arch conditional.
+If you see `unknown package: ...:setup.jenga-setup` during a cross-build, ensure your `cabal.project` has these packages behind the arch conditional.
 
 ### How do I cache individual build components with Nix?
 

@@ -8,5 +8,5 @@ let eval = import ../deps/nix-haskell/eval.nix { inherit system pkgs; };
 
 in import ../deps/nix-haskell/docs.nix {
   inherit pkgs;
-  options = { obelisk = options.obelisk; };
+  options = { jenga = options.jenga; };
 }

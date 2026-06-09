@@ -1,7 +1,7 @@
 import qualified Data.Text as T
-import Obelisk.Asset.Cabal
-import Obelisk.Asset.Gather
-import Obelisk.Asset.Symlink
+import Jenga.Asset.Cabal
+import Jenga.Asset.Gather
+import Jenga.Asset.Symlink
 import System.Environment
 import System.FilePath
 
@@ -15,7 +15,7 @@ main = do
     , _simplePkg_moduleName = T.pack moduleName
     , _simplePkg_dependencies = map T.pack
       [ "base"
-      , "obelisk-asset-manifest"
+      , "jenga-asset-manifest"
       , "template-haskell"
       ]
     , _simplePkg_moduleContents = T.pack $ unlines
@@ -27,11 +27,11 @@ main = do
       , "-}"
       , "module " <> moduleName <> " ( static, staticFilePath ) where"
       , ""
-      , "import Obelisk.Asset.TH"
+      , "import Jenga.Asset.TH"
       , "import Language.Haskell.TH"
       , ""
       , "static, staticFilePath :: FilePath -> Q Exp"
-      , "#ifdef OBELISK_ASSET_PASSTHRU"
+      , "#ifdef JENGA_ASSET_PASSTHRU"
       , "static = staticAssetRaw"
       , "staticFilePath =  staticAssetFilePathRaw \"static.out\""
       , "#else"

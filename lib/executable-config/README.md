@@ -1,8 +1,8 @@
-# Obelisk.ExecutableConfig
+# Jenga.ExecutableConfig
 
 ## About
 
-Obelisk.ExecutableConfig serves two related purposes:
+Jenga.ExecutableConfig serves two related purposes:
 
 1. Injection: a cross-platform injection function, which can be used to put configuration files in a canonical location.
 2. Retrieval: a cross-platform retrieval function that is aware of the canonical location on each platform and how to read files from that location.

@@ -1,17 +1,17 @@
-# obelisk-setup
+# jenga-setup
 
-Cabal `Setup.hs` hooks for Obelisk projects. Provides reusable build logic so downstream packages only need a one-line `Setup.hs`.
+Cabal `Setup.hs` hooks for Jenga projects. Provides reusable build logic so downstream packages only need a one-line `Setup.hs`.
 
 ## Modules
 
-### `Obelisk.Setup.Backend`
+### `Jenga.Setup.Backend`
 
 Pre-build hook that symlinks frontend assets into `backend/data/`:
 
 - `frontend/data/frontend.jsexe` -> `backend/data/frontend.jsexe`
 - `frontend/data/static` -> `backend/data/static`
 
-### `Obelisk.Setup.Frontend`
+### `Jenga.Setup.Frontend`
 
 Pre-build hook that cross-compiles the frontend with GHCJS (in a background thread), then post-build symlinks the output into `frontend/data/`:
 
@@ -20,15 +20,15 @@ Pre-build hook that cross-compiles the frontend with GHCJS (in a background thre
 
 Looks for `javascript-unknown-ghcjs` or `javascript-unknown-ghcjs-cabal` on `$PATH` (provided by the nix shell).
 
-### `Obelisk.Setup.Static`
+### `Jenga.Setup.Static`
 
 Pre-build hook that generates static asset manifests:
 
 1. Runs `static/generate` to produce hashed static assets
 2. Computes SHA-256 hashes for cache-busting filenames
-3. Generates `Obelisk.Generated.Static.Instances` module with `StaticFile` instances
+3. Generates `Jenga.Generated.Static.Instances` module with `StaticFile` instances
 
-### `Obelisk.Setup.Utils`
+### `Jenga.Setup.Utils`
 
 Shared utilities:
 
@@ -37,7 +37,7 @@ Shared utilities:
 
 ## Usage
 
-Add `obelisk-setup` to your package's `custom-setup` dependencies:
+Add `jenga-setup` to your package's `custom-setup` dependencies:
 
 ```cabal
 build-type: Custom
@@ -46,13 +46,13 @@ custom-setup
   setup-depends:
     base >= 4.7 && < 5,
     Cabal >= 3.0 && < 4,
-    obelisk-setup
+    jenga-setup
 ```
 
 Then write a one-line `Setup.hs`:
 
 ```haskell
-import Obelisk.Setup.Backend (main)
+import Jenga.Setup.Backend (main)
 ```
 
 Replace `Backend` with `Frontend` or `Static` as appropriate.

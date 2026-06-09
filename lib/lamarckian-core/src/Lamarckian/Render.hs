@@ -11,7 +11,7 @@ module Lamarckian.Render where
 import Lamarckian.Types
 import Lamarckian.Template as Template
 
-import Obelisk.Route.Frontend
+import Jenga.Route.Frontend
 import Reflex.Dom.Core
 import "template-haskell" Language.Haskell.TH
 import qualified Data.Map as Map

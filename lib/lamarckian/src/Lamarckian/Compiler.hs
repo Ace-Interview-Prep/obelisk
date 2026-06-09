@@ -7,7 +7,7 @@ import Lamarckian.Render
 -- import Control.Exception
 
 import Language.Haskell.TH
-import Obelisk.Route
+import Jenga.Route
 import Control.Monad.IO.Class
 import qualified Control.Exception as CE
 import Control.Exception (IOException)

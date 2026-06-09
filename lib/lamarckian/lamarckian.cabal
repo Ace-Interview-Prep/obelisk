@@ -42,7 +42,7 @@ library
     -- other-modules:
     -- other-extensions:
     build-depends:    base
-                    , obelisk-route
+                    , jenga-route
                     , reflex-dom-core
                     , IStr
                     , filepath

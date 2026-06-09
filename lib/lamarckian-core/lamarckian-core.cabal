@@ -44,7 +44,7 @@ library
     -- other-extensions:
     build-depends:    base
                     , base16-bytestring
-                    , obelisk-route
+                    , jenga-route
                     , reflex-dom-core
                     , IStr
                     , filepath

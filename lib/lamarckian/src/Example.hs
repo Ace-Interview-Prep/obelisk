@@ -11,7 +11,7 @@ import Backend.Config
 import Backend.Utils.Log
 import Backend.Utils.HttpJson
 
-import Obelisk.Route
+import Jenga.Route
 
 import Snap
 import Snap.Util.GZip

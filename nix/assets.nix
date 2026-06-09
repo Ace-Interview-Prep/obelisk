@@ -1,4 +1,4 @@
-# Asset generation pipeline using Nix, which generates a directory structure to be served via obelisk-asset-serve-*
+# Asset generation pipeline using Nix, which generates a directory structure to be served via jenga-asset-serve-*
 
 { nixpkgs
 

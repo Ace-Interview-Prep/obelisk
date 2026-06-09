@@ -1,14 +1,14 @@
-# NixOS module for deploying an obelisk backend application.
+# NixOS module for deploying a Jenga backend application.
 #
 # Usage: import this module in your NixOS configuration and set
-# services.obelisk options. Use obelisk's serverExe to build the exe.
+# services.jenga options. Use Jenga's serverExe to build the exe.
 { config, lib, pkgs, ... }:
 
-let cfg = config.services.obelisk;
+let cfg = config.services.jenga;
 
 in {
-  options.services.obelisk = {
-    enable = lib.mkEnableOption "obelisk backend application";
+  options.services.jenga = {
+    enable = lib.mkEnableOption "Jenga backend application";
 
     exe = lib.mkOption {
       type = lib.types.package;
@@ -90,7 +90,7 @@ in {
   config = lib.mkIf cfg.enable {
     assertions = [{
       assertion = !(builtins.elem cfg.routeHost cfg.redirectHosts);
-      message = "services.obelisk: routeHost may not be a member of redirectHosts";
+      message = "services.jenga: routeHost may not be a member of redirectHosts";
     }];
 
     networking.firewall.allowedTCPPorts =
