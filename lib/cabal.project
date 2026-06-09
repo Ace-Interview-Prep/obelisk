@@ -4,3 +4,83 @@ packages:
   executable-config/*
 
 import: cabal.project.config
+
+source-repository-package
+  type: git
+  location: https://github.com/TypifyDev/rhyolite.git
+  tag: 7e5d832e568a17df84ac599cefef5eb50ee0e4a9
+  subdir:
+    account/backend
+    account/types
+    backend
+    beam/db
+    beam/orphans
+    common
+    email
+    email/mime-mail-orphans
+    frontend
+    notify-listen/notify-listen
+    notify-listen/notify-listen-beam
+    psql-extras/psql-serializable
+    psql-extras/psql-simple-beam
+    psql-extras/psql-simple-class
+    semimap
+    signed-data/signed-data
+    signed-data/signed-data-clientsession
+    widgets
+
+source-repository-package
+  type: git
+  location: https://github.com/augyg/beam.git
+  tag: 0c637150f1064fb323d36899e24f2bb2c5debcbd
+  subdir:
+    beam-core
+    beam-migrate
+    beam-postgres
+
+source-repository-package
+  type: git
+  location: https://github.com/Ace-Interview-Prep/beam-automigrate.git
+  tag: bc0a985ac12c42303c9b2e57d38782c635a24084
+
+source-repository-package
+  type: git
+  location: https://github.com/obsidiansystems/gargoyle.git
+  tag: 00ba66f3b0e9876e44cf1b7f02c856e808bd5c13
+  subdir:
+    gargoyle
+    gargoyle-postgresql
+    gargoyle-postgresql-connect
+
+source-repository-package
+  type: git
+  location: https://github.com/TypifyDev/obelisk-oauth.git
+  tag: 40e25aff1237cd7b630049906880131ce2c73fee
+  subdir:
+    backend
+    common
+
+source-repository-package
+  type: git
+  location: https://github.com/obsidiansystems/bytestring-aeson-orphans.git
+  tag: 4d3c8d2344af18a0e486b07d574e41ad7e24a10c
+
+source-repository-package
+  type: git
+  location: https://github.com/obsidiansystems/monoid-map.git
+  tag: b17c341f7598b57a04b23c2c37b47a84319a1de0
+
+source-repository-package
+  type: git
+  location: https://github.com/obsidiansystems/postgresql-lo-stream.git
+  tag: 42f33e0980f6b57f28771d21fc2107c4d38cf3d7
+
+source-repository-package
+  type: git
+  location: https://github.com/obsidiansystems/postgresql-simple-interpolate.git
+  tag: 89cc64e1620f753425830516f7a3c48b42e240dd
+
+source-repository-package
+  type: git
+  location: https://github.com/obsidiansystems/vessel.git
+  tag: a0eafdd20b3844dd23e3b0ac537049c60b9049b0
