@@ -69,11 +69,14 @@ interpretTriggerEvent :: forall t es a. WidgetChannel t :> es => Eff (TriggerEve
 interpretTriggerEvent = interpret_ $ \case
   NewTriggerEvent               -> sr @t WONewTriggerEvent
   NewTriggerEventWithOnComplete -> error "reflex-effectful: newTriggerEventWithOnComplete not yet wired"
+  Delay dt ev                   -> sendReq (WODelay dt ev)
+  TickLossyFrom ev              -> sendReq (WOTickLossyFrom ev)
 
 interpretPerformEvent :: forall t es a. WidgetChannel t :> es => Eff (PerformEvent t : es) a -> Eff es a
 interpretPerformEvent = interpret_ $ \case
   PerformEvent ev  -> sendReq (WOPerformEvent ev)
   PerformEvent_ ev -> sendReq (WOPerformEvent_ ev)
+  PerformRequestAsync ev -> sendReq (WOPerformRequestAsync ev)
 
 interpretDom :: forall t es a. (WidgetChannel t :> es, IOE :> es) => Eff (Dom t : es) a -> Eff es a
 interpretDom = interpret $ \env -> \case

@@ -29,9 +29,11 @@ import           Data.Text                (Text)
 import           Effectful
 import           Effectful.Dispatch.Static
 
-import           Reflex                   (Behavior, Dynamic, Event, Incremental)
+import           Data.Time.Clock           (NominalDiffTime, UTCTime)
+import           Reflex                   (Behavior, Dynamic, Event, Incremental, TickInfo)
 import           GHCJS.DOM.Types          (JSM)
 import qualified Reflex.Dom.Builder.Class as DBC
+import qualified Reflex.Dom.Xhr           as Xhr
 
 import           Reflex.Effectful.Types
 
@@ -53,8 +55,8 @@ data WidgetOp t result where
   WOFoldDynMaybe    :: (a -> b -> Maybe b) -> b -> Event t a -> WidgetOp t (Dynamic t b)
   WOGetPostBuild    :: WidgetOp t (Event t ())
   WONewTriggerEvent :: WidgetOp t (Event t a, a -> IO ())
-  WOPerformEvent    :: Event t (IO a) -> WidgetOp t (Event t a)
-  WOPerformEvent_   :: Event t (IO ()) -> WidgetOp t ()
+  WOPerformEvent    :: Event t (JSM a) -> WidgetOp t (Event t a)
+  WOPerformEvent_   :: Event t (JSM ()) -> WidgetOp t ()
   WOText            :: Text -> WidgetOp t ()
   WODynText         :: Dynamic t Text -> WidgetOp t ()
   WOElementOpen     :: Text -> ElementConfig EventResult t GhcjsDomSpace -> IORef (Maybe (Element EventResult GhcjsDomSpace t)) -> WidgetOp t ()
@@ -75,6 +77,11 @@ data WidgetOp t result where
   WOTellEvent       :: Event t a -> WidgetOp t ()
   WOTellDyn         :: Dynamic t a -> WidgetOp t ()
   WOTellBehavior    :: Behavior t a -> WidgetOp t ()
+  -- Timer/event primitives
+  WODelay           :: NominalDiffTime -> Event t a -> WidgetOp t (Event t a)
+  WOTickLossyFrom   :: Event t (NominalDiffTime, UTCTime) -> WidgetOp t (Event t TickInfo)
+  -- XHR
+  WOPerformRequestAsync :: Event t (Xhr.XhrRequest ()) -> WidgetOp t (Event t Xhr.XhrResponse)
   WODone            :: WidgetOp t ()
 
 data WidgetReq t where

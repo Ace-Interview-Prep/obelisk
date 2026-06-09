@@ -17,6 +17,7 @@ import           Data.IORef
 
 import qualified Reflex
 import qualified Reflex.Dom.Core          as RD
+import qualified Reflex.Dom.Xhr           as Xhr
 import           GHCJS.DOM.Types          (MonadJSM, liftJSM)
 
 import           Reflex.Effectful.Internal.Channel (WidgetOp(..), WidgetReq(..), ChildHandle(..))
@@ -73,8 +74,8 @@ dispatch chanVar op respVar = case op of
   WOFoldDynMaybe f z ev -> do r <- Reflex.foldDynMaybe f z ev; liftIO $ putMVar respVar r; processLoop chanVar
   WOGetPostBuild    -> do r <- RD.getPostBuild; liftIO $ putMVar respVar r; processLoop chanVar
   WONewTriggerEvent -> do r <- RD.newTriggerEvent; liftIO $ putMVar respVar r; processLoop chanVar
-  WOPerformEvent ev -> do r <- RD.performEvent (liftIO <$> ev); liftIO $ putMVar respVar r; processLoop chanVar
-  WOPerformEvent_ ev -> do RD.performEvent_ (liftIO <$> ev); liftIO $ putMVar respVar (); processLoop chanVar
+  WOPerformEvent ev -> do r <- RD.performEvent (liftJSM <$> ev); liftIO $ putMVar respVar r; processLoop chanVar
+  WOPerformEvent_ ev -> do RD.performEvent_ (liftJSM <$> ev); liftIO $ putMVar respVar (); processLoop chanVar
   WOText t          -> do RD.text t; liftIO $ putMVar respVar (); processLoop chanVar
   WODynText d       -> do RD.dynText d; liftIO $ putMVar respVar (); processLoop chanVar
 
@@ -114,6 +115,11 @@ dispatch chanVar op respVar = case op of
   WORequestDomAction_ ev -> do RD.requestDomAction_ ev; liftIO $ putMVar respVar (); processLoop chanVar
   WONotReadyUntil ev -> do RD.notReadyUntil ev; liftIO $ putMVar respVar (); processLoop chanVar
   WONotReady         -> do RD.notReady; liftIO $ putMVar respVar (); processLoop chanVar
+
+  WODelay dt ev      -> do r <- RD.delay dt ev; liftIO $ putMVar respVar r; processLoop chanVar
+  WOTickLossyFrom ev -> do r <- RD.tickLossyFrom' ev; liftIO $ putMVar respVar r; processLoop chanVar
+  WOPerformRequestAsync ev -> do r <- Xhr.performRequestAsync ev; liftIO $ putMVar respVar r; processLoop chanVar
+
   WOTellEvent{}      -> error "reflex-effectful: tellEvent requires EventWriterT in Widget stack"
   WOTellDyn{}        -> error "reflex-effectful: tellDyn requires DynamicWriterT in Widget stack"
   WOTellBehavior{}   -> error "reflex-effectful: tellBehavior requires BehaviorWriterT in Widget stack"
