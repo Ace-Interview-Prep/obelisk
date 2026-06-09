@@ -1,0 +1,49 @@
+cabal-version: 2.4
+name:          jenga-command
+version:       2.0.0.0
+synopsis:      CLI for jenga development and deployment
+build-type:    Simple
+data-dir:      data
+data-files:
+  .keep
+
+executable jenga
+  hs-source-dirs: src-bin
+  main-is:        jenga.hs
+  build-depends:
+    , base
+    , jenga-command
+  default-language: GHC2021
+  ghc-options: -Wall -threaded
+
+library
+  hs-source-dirs: src
+  exposed-modules:
+    Jenga.Command
+    Jenga.Command.Run
+    Jenga.Command.Repl
+    Jenga.Command.Hoogle
+    Jenga.Command.Deploy
+    Jenga.Command.Deploy.Init
+    Jenga.Command.Deploy.Push
+    Jenga.Command.Init
+    Jenga.Command.Thunk
+    Jenga.Command.Utils
+  other-modules:
+    Paths_jenga_command
+  autogen-modules:
+    Paths_jenga_command
+  build-depends:
+    , base
+    , optparse-applicative
+    , process
+    , directory
+    , filepath
+    , which
+    , unix
+    , bytestring
+  default-language: GHC2021
+  default-extensions:
+    OverloadedStrings
+    TemplateHaskell
+  ghc-options: -Wall

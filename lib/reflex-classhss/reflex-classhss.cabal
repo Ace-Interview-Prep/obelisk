@@ -1,0 +1,94 @@
+cabal-version:      2.4
+name:               reflex-classhss
+version:            0.1.0.0
+synopsis:
+        Using ClasshSS this module provides a number of interfaces to rapidly build UIs,
+        in particular there is a focus on text and layouts
+-- description:
+homepage:           https://github.com/augyg/ClasshSS
+license:            MIT
+license-file:       LICENSE
+author:             Galen Sprout
+maintainer:         galen.sprout@gmail.com
+-- copyright:
+category:           Web
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  Classh.Reflex
+                      Classh.Reflex.Eff
+                      Classh.Reflex.El
+                      Classh.Reflex.InlineBlock
+                      Classh.Reflex.Layout
+                      Classh.Reflex.Text
+                      Classh.Reflex.Place
+    build-depends:    base
+                    , effectful-core
+                    , reflex
+                    , reflex-effectful
+                      --^>=4.15.1.0
+                    , containers
+                    , data-default
+                      -->= 0.7.1 && < 0.8
+                    , lens
+                      -->= 5.2.3 && < 5.3
+                    , monad-tree
+                    , template-haskell
+                    , reflex-dom-core
+                    , ClasshSS
+                      -->= 2.17.0 && < 2.18
+                    , text
+                      -->= 1.2.5 && < 1.3
+    hs-source-dirs:   src
+    ghc-options: -Wall -Werror -O -threaded -fno-show-valid-hole-fits
+    default-language: Haskell2010
+
+test-suite setsides-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          SetSidesTest.hs
+    build-depends:    base
+                    , reflex-classhss
+                    , reflex-dom-core
+                    , ClasshSS
+                    , text
+    default-language: Haskell2010
+
+test-suite example-dom
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          ExampleDOM.hs
+    build-depends:    base
+                    , bytestring
+                    , reflex-classhss
+                    , reflex-dom-core
+                    , monad-tree
+                    , ClasshSS
+                    , text
+                    , ghc-typelits-natnormalise >= 0.7
+                    , ghc-typelits-knownnat     >= 0.7
+    default-language: Haskell2010
+
+test-suite inline-block-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          InlineBlockTest.hs
+    build-depends:    base
+                    , bytestring
+                    , reflex-classhss
+                    , reflex-dom-core
+                    , monad-tree
+                    , ClasshSS
+                    , text
+                    , ghc-typelits-natnormalise >= 0.7
+                    , ghc-typelits-knownnat     >= 0.7
+    default-language: Haskell2010

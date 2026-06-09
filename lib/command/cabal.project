@@ -1,0 +1,6 @@
+packages: .
+
+if impl(ghc == 9.14.*)
+  allow-newer:
+      *:base
+    , *:template-haskell

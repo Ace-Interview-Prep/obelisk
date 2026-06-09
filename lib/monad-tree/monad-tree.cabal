@@ -1,0 +1,61 @@
+cabal-version:      2.4
+name:               monad-tree
+version:            0.1.0.0
+synopsis:           Monadic product decomposition and finite resource consumption
+description:
+  Two orthogonal abstractions:
+  .
+  @MonadTree@ provides a @split@ primitive that decomposes @m (a,b)@ into
+  @(m a, m b)@ with semantics determined by the specific monad instance.
+  .
+  @Subtractive@ and @Consumable@ model finite resources that are consumed
+  in steps, with the subtraction result type determined by an associated
+  type family.
+license:            BSD-3-Clause
+author:             Galen Sprout
+maintainer:         galen.sprout@gmail.com
+category:           Control
+build-type:         Simple
+
+library
+  exposed-modules:
+    Control.Monad.Tree
+    Control.Monad.Tree.Helpers
+    Control.Monad.Tree.Grid
+    Control.Monad.Tree.Grid.Indexed
+    Control.Monad.Tree.Grid.Budget
+    Control.Monad.Consumable
+  build-depends:
+      base                      >= 4.14 && < 5
+    , mtl                       >= 2.2  && < 2.4
+    , transformers              >= 0.5  && < 0.7
+  if !(arch(javascript) || arch(wasm32))
+    build-depends:
+        ghc-typelits-natnormalise >= 0.7
+      , ghc-typelits-knownnat     >= 0.7
+  hs-source-dirs:   src
+  default-language: Haskell2010
+  ghc-options:      -Wall
+
+test-suite monad-tree-test
+  type:             exitcode-stdio-1.0
+  main-is:          Main.hs
+  hs-source-dirs:   test
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  build-depends:
+      base         >= 4.14 && < 5
+    , monad-tree
+    , transformers >= 0.5  && < 0.7
+
+test-suite indexed-test
+  type:             exitcode-stdio-1.0
+  main-is:          IndexedTest.hs
+  hs-source-dirs:   test
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  build-depends:
+      base                      >= 4.14 && < 5
+    , monad-tree
+    , ghc-typelits-natnormalise >= 0.7
+    , ghc-typelits-knownnat     >= 0.7

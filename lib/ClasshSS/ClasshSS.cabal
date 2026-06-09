@@ -1,0 +1,194 @@
+cabal-version:      2.4
+name:               ClasshSS
+version:            0.1.0.0
+synopsis:
+        Typified Tailwind for Rapid Development
+description:
+  This package is a type-safe layer on top of Tailwind Classes
+  to allow someone to treat the compiler like a lookup machine and ensure that no time will
+  be wasted trying to fix typos in tailwind strings
+
+  Originally this was meant to also provide a way to typify CSS but Tailwind provides such a nice
+  abstraction on top of CSS and provides logical custom values that it made more sense to build
+  entirely on top of Tailwind.
+
+  It is not meant to be an exact 1 to 1 translation of Tailwind but rather an interface that
+  aims to reduce the number of ways to do the same thing, in the effort to reduce spooky CSS behavior
+homepage:           https://github.com/augyg/ClasshSS
+license:            MIT
+license-file:       LICENSE
+author:             Galen Sprout
+maintainer:         galen.sprout@gmail.com
+-- copyright:
+category:           Web
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall 
+
+library
+    import:           warnings
+    exposed-modules: Classh
+                     Classh.Box
+                     Classh.Box.Border
+                     Classh.Box.DivInt
+                     Classh.Box.Gradient
+                     Classh.Box.Margin
+                     Classh.Box.Padding
+                     Classh.Box.Placement
+                     Classh.Box.Placement.Align
+                     Classh.Box.Placement.Justify
+                     Classh.Box.Outline
+                     Classh.Box.Ring
+                     Classh.Box.Shadow
+                     Classh.Box.Transform
+                     Classh.Box.TWSize
+                     Classh.Box.TWSize.Budget
+                     Classh.Box.SizingBand
+                     Classh.Box.Transition
+                     Classh.Box.Sizing.BoxSizingConstraint
+                     Classh.Box.Sizing.BoxSizing
+                     Classh.Box.Sizing.DimensionConstraint
+                     Classh.Class.CompileStyle
+                     Classh.Class.HasCSSSize
+                     Classh.Class.HasCustom
+                     Classh.Class.IsCSS
+                     Classh.Class.SetSides
+                     Classh.Class.ShowTW
+                     Classh.Color
+                     Classh.Cursor
+                     Classh.Grid
+                     Classh.Internal.CSSSize
+                     Classh.Internal.Chain
+                     Classh.Internal.TShow
+                     Classh.Internal.TWNum
+                     Classh.Internal.Utils
+                     Classh.Responsive.WhenTW
+                     Classh.Responsive.ZipScreens
+                     Classh.Setters
+                     Classh.Shorthand
+                     Classh.Text
+                     Classh.Text.Decoration
+                     Classh.Text.Decoration.LineType
+                     Classh.Text.Decoration.Offset
+                     Classh.Text.Decoration.Style
+                     Classh.Text.Decoration.Thickness
+                     Classh.Text.Font
+                     Classh.Text.FontStyle
+                     Classh.Text.Size
+                     Classh.Text.Weight
+                     Classh.Box.Border.Color
+                     Classh.Box.Border.Radius
+                     Classh.Box.Border.Style
+                     Classh.Box.Border.Width
+                     Classh.TextPosition
+                     Classh.TextPosition.Clamp
+                     Classh.TextPosition.Content
+                     Classh.TextPosition.Hyphen
+                     Classh.TextPosition.Lead
+                     Classh.TextPosition.TAlign
+                     Classh.TextPosition.TOverflow
+                     Classh.TextPosition.Track
+                     Classh.TextPosition.VAlign
+                     Classh.TextPosition.WhiteSpace
+                     Classh.TextPosition.WordBreak
+                     Classh.TextPosition.Wrap
+                     Classh.WithTransition
+
+
+    default-extensions:
+        OverloadedStrings
+        TemplateHaskell
+        LambdaCase
+        MultiParamTypeClasses
+        FlexibleContexts
+        PackageImports
+    build-depends:    base
+                      --^>=4.15.1.0
+                    , data-default
+                      -->= 0.7.1 && < 0.8
+                    , lens
+                      -->= 5.2.3 && < 5.3
+                    , monad-tree
+                    , template-haskell
+                      -->= 2.17.0 && < 2.18
+                    , text
+                      -->= 1.2.5 && < 1.3
+    hs-source-dirs:   src
+    ghc-options: -Wall -Werror -O -threaded -fno-show-valid-hole-fits
+    default-language: Haskell2010
+
+test-suite transition-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          TransitionTest.hs
+    build-depends:    base
+                    , ClasshSS
+                    , data-default
+                    , lens
+                    , text
+    default-language: Haskell2010
+
+test-suite comprehensive-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          ComprehensiveTest.hs
+    build-depends:    base
+                    , ClasshSS
+                    , data-default
+                    , lens
+                    , text
+    default-language: Haskell2010
+
+test-suite generate-html-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          GenerateHTMLTest.hs
+    build-depends:    base
+                    , ClasshSS
+                    , data-default
+                    , lens
+                    , text
+    default-language: Haskell2010
+
+test-suite transform-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          TransformTest.hs
+    build-depends:    base
+                    , ClasshSS
+                    , data-default
+                    , lens
+                    , text
+    default-language: Haskell2010
+
+test-suite gradient-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          GradientTest.hs
+    build-depends:    base
+                    , ClasshSS
+                    , data-default
+                    , lens
+                    , text
+    default-language: Haskell2010
+
+test-suite budget-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          BudgetTest.hs
+    build-depends:    base
+                    , ClasshSS
+                    , monad-tree
+                    , text
+                    , ghc-typelits-natnormalise >= 0.7
+                    , ghc-typelits-knownnat     >= 0.7
+    default-language: Haskell2010
