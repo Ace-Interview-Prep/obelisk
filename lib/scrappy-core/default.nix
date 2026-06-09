@@ -15,7 +15,7 @@ mkDerivation {
     aeson base bytestring containers directory filepath hedgehog lens
     modern-uri parsec tasty tasty-hedgehog text transformers
   ];
-  homepage = "https://github.com/Ace-Interview-Prep/scrappy";
+  homepage = "https://github.com/TypifyDev/scrappy";
   description = "html pattern matching library and high-level interface concurrent requests lib for webscraping";
   license = lib.licenses.bsd3;
 }
