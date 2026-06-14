@@ -22,16 +22,16 @@
 	branch = develop
 [submodule "deps/monoid-map"]
 	path = deps/monoid-map
-	url = https://github.com/obsidiansystems/monoid-map.git
-	branch = release/0.2.0.0
+	url = https://github.com/TypifyDev/monoid-map.git
+	branch = gs/jenga-port
 [submodule "deps/obelisk-oauth"]
 	path = deps/obelisk-oauth
 	url = https://github.com/TypifyDev/obelisk-oauth.git
-	branch = master
+	branch = gs/jenga-port
 [submodule "deps/postgresql-lo-stream"]
 	path = deps/postgresql-lo-stream
-	url = https://github.com/obsidiansystems/postgresql-lo-stream.git
-	branch = develop
+	url = https://github.com/TypifyDev/postgresql-lo-stream.git
+	branch = gs/jenga-port
 [submodule "deps/postgresql-simple-interpolate"]
 	path = deps/postgresql-simple-interpolate
 	url = https://github.com/obsidiansystems/postgresql-simple-interpolate.git
@@ -39,7 +39,7 @@
 [submodule "deps/rhyolite"]
 	path = deps/rhyolite
 	url = https://github.com/TypifyDev/rhyolite.git
-	branch = aa/remove-modals
+	branch = gs/jenga-port
 [submodule "deps/vessel"]
 	path = deps/vessel
 	url = https://github.com/obsidiansystems/vessel.git
@@ -51,4 +51,4 @@
 [submodule "deps/servant-snap"]
 	path = deps/servant-snap
 	url = https://github.com/TypifyDev/servant-snap.git
-	branch = master
+	branch = gs/jenga-port
