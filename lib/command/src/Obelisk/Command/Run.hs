@@ -597,6 +597,15 @@ runGhcid root chdirToRoot ghciArgs (toList -> packages) mcmd =
   where
     opts = concat
       [ ["-W"]
+      -- Emit ghcid's own trace lines to ghcid-output.txt so we can see
+      -- which step it stopped on when GHCi + ghcid deadlock on the
+      -- multi-package repl (compound bug across ghcid+GHC+obelisk; see
+      -- GHC #26610 and ghcid #310/#355). Without this the output file
+      -- is silent during the hang and we can't distinguish a stuck
+      -- reload from a broken file watcher from a GHCi that stopped
+      -- reading its stdin. Chatty but the async SFU log sink means
+      -- it's no longer expensive.
+      , ["--verbose"]
       , ["--outputfile=ghcid-output.txt"]
       , map (\x -> "--reload=" <> x) reloadFiles
       , map (\x -> "--restart=" <> x) restartFiles
