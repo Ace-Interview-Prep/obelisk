@@ -1,0 +1,1 @@
+module FrontendWasm.Placeholder where
