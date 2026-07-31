@@ -24,8 +24,8 @@ if !(arch(javascript) || arch(wasm32))
 --optional-packages:
 --  deps/jenga/deps/reflex-dom/*
 
--- multi-repl: True
--- Disabled: GHC 9.14 multi-unit GHCi panics with "LinkInMemory".
+multi-repl: True
+-- Re-enabled to investigate the LinkInMemory panic prior turns noted.
 
 
 
