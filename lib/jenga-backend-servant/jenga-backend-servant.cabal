@@ -14,6 +14,7 @@ library
     , bytestring
     , containers
     , data-default
+    , jenga-asset-serve-snap
     , jenga-route-servant
     , reflex-effectful
     , servant

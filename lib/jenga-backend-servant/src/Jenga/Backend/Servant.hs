@@ -71,6 +71,7 @@ import           GHC.Generics (Generic)
 import           Snap.Core
 import           Snap.Http.Server (quickHttpServe)
 import qualified Snap.Util.FileServe as Snap
+import qualified Jenga.Asset.Serve.Snap as JengaAsset
 
 import           Jenga.Route (HasRoute(..), PageName, urlToSegments)
 import           Jenga.Frontend (Frontend(..), renderFrontendHtml)
@@ -223,12 +224,20 @@ serveFrontendRoute cfg configs backend = do
 
 -- ─── Static file serving ───────────────────────────────────────
 
--- | Serve files from a StaticAssets directory.
--- Tries processed (hashed) first, falls back to unprocessed.
+-- | Serve files from a StaticAssets directory using the obelisk-style
+-- hashed-asset protocol (reads type/target metadata, emits redirects to
+-- the hashed asset, serves it with proper caching + encoding negotiation).
+--
+-- Previously used @Snap.serveDirectory@, which does trailing-slash
+-- canonicalization for the asset directories (each hashed asset is
+-- structured as a dir with @type@/@target@/@encodings@ files), so every
+-- request for @/ghcjs\/all.js@ got 302'd to @/ghcjs\/all.js\/@ and fell
+-- through to the SPA HTML. Matches obelisk-v1's @serveStaticAssets@.
 serveStaticDir :: StaticAssets -> Snap ()
 serveStaticDir assets =
-  Snap.serveDirectory (_staticAssets_processed assets)
-  <|> Snap.serveDirectory (_staticAssets_unprocessed assets)
+  JengaAsset.serveAssets
+    (_staticAssets_processed assets)
+    (_staticAssets_unprocessed assets)
 
 -- | Serve static assets (compatibility alias).
 serveStaticAssets :: StaticAssets -> [Text] -> Snap ()
