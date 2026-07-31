@@ -49,11 +49,19 @@ custom-setup
     jenga-setup
 
 library
+    hs-source-dirs:     src
     build-depends:      base
                         --
                       , frontend
 
     reexported-modules: Frontend
+
+    -- Placeholder module: workaround for GHC #25366 / #26073.
+    -- cabal repl --enable-multi-repl panics ("LinkInMemory") on units
+    -- with no exposed-modules of their own. See:
+    --   https://gitlab.haskell.org/ghc/ghc/-/issues/25366
+    --   https://gitlab.haskell.org/ghc/ghc/-/issues/26073
+    exposed-modules:    FrontendWasm.Placeholder
 
     default-language:   Haskell2010
 
